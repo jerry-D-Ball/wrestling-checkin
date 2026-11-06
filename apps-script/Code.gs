@@ -20,7 +20,7 @@ var TABS = {
 };
 
 var DEFAULTS = [
-  ['TEAM_NAME', 'West Point Wrestling', 'Shown at the top of the app and on the QR poster.'],
+  ['TEAM_NAME', 'West Point Dragons Wrestling', 'Shown at the top of the app and on the QR poster.'],
   ['COACH_PIN', '', 'PIN for the coach screens. Change it any time. Share only with coaches.'],
   ['TIMEZONE', 'America/Phoenix', 'School time zone.'],
   ['PRACTICE_START', '16:00', 'Practice start, 24-hour time (16:00 = 4:00 PM).'],
