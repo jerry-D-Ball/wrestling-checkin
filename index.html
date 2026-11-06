@@ -223,13 +223,30 @@ function athleteStart(){
       return renderAthlete();
     }
     A.me=r.me;
-    if(!A.me.status&&A.me.open&&!A.me.needCode)return doCheckIn('');
+    if(!A.me.status&&A.me.open&&pmode()!=='code')return tryCheckIn();
     A.busy=false;renderAthlete();
   });
 }
-function doCheckIn(code){
-  A.busy=true;A.err='';renderAthlete();
-  api('athleteCheckIn',A.sid,deviceId(),code).then(function(r){
+function pmode(){return (A.me&&A.me.presence)||'off';}
+/* Ask the phone where it is. Resolves {lat,lng,acc}; rejects with a plain-language reason. */
+function locate(){
+  return new Promise(function(res,rej){
+    if(!navigator.geolocation)return rej('This phone cannot share its location.');
+    navigator.geolocation.getCurrentPosition(function(p){res({lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy});},
+      function(e){rej(e&&e.code===1?'Location is turned off for this page. Allow location, then try again.':'This phone could not find its location.');},
+      {enableHighAccuracy:true,timeout:15000,maximumAge:30000});
+  });
+}
+function tryCheckIn(){
+  if(pmode()==='off')return doCheckIn({});
+  A.busy=true;A.busyMsg='Finding your location…';A.err='';renderAthlete();
+  locate().then(function(pos){doCheckIn(pos);},function(why){
+    A.busy=false;A.busyMsg='';A.err=why+(pmode()==='loc'?' Or ask Coach for the backup code.':' Or see Coach to be marked.');renderAthlete();
+  });
+}
+function doCheckIn(proof){
+  A.busy=true;A.busyMsg='';A.err='';renderAthlete();
+  api('athleteCheckIn',A.sid,deviceId(),proof).then(function(r){
     A.busy=false;
     if(r.me)A.me=r.me;
     if(!r.ok)A.err=r.message;
@@ -255,21 +272,22 @@ function renderAthlete(){
   }
   h+='<div style="text-align:center;margin-top:18px"><button class="link" data-a="coachMode" style="color:#44536a">Coach</button></div></div>';
   $app.innerHTML=h;
-  var f=document.getElementById('sid')||document.getElementById('code');
+  var f=document.getElementById('sid')||(pmode()==='code'?document.getElementById('code'):null);
   if(f&&!A.busy)f.focus();
 }
 function heroHtml(){
   var m=A.me;
   if(A.busy&&!m)return '<div class="hero info"><div class="spin"></div><div class="d">One moment…</div></div>';
-  if(A.busy)return '<div class="hero info"><div class="spin"></div><div class="t">Checking you in…</div><div class="n">'+E(m.name)+'</div></div>';
+  if(A.busy)return '<div class="hero info"><div class="spin"></div><div class="t">'+E(A.busyMsg||'Checking you in…')+'</div><div class="n">'+E(m.name)+'</div></div>';
   if(!m)return '<div class="hero bad"><div class="ic">!</div><div class="t">NOT CHECKED IN</div><div class="d">'+E(A.err||'Could not load.')+'</div></div><button class="btn" data-a="retry">Try again</button><p class="hint" style="text-align:center;margin-bottom:14px">Still not working? Tell Coach — Coach can mark you here.</p>';
   var when=nice(m.date);
   if(m.status==='Present')return '<div class="hero ok"><div class="ic">✓</div><div class="t">CHECKED IN</div><div class="n">'+E(m.name)+'</div><div class="d">'+E(t12(m.time))+' · '+E(when)+'</div></div>';
   if(m.status==='Late')return '<div class="hero late"><div class="ic">✓</div><div class="t">CHECKED IN — LATE</div><div class="n">'+E(m.name)+'</div><div class="d">'+E(t12(m.time))+' · '+E(when)+'</div></div>';
   if(m.status==='Excused'||m.status==='Absent')return '<div class="hero info"><div class="t">Coach marked you '+E(m.status)+'</div><div class="n">'+E(m.name)+'</div><div class="d">'+E(when)+' · If that is wrong, see Coach.</div></div>';
-  if(A.err&&!(m.needCode&&m.open))return '<div class="hero bad"><div class="ic">!</div><div class="t">NOT CHECKED IN</div><div class="n">'+E(m.name)+'</div><div class="d">'+E(A.err)+'</div></div>'+(m.open?'<button class="btn" data-a="retry" style="margin-bottom:14px">Try again</button>':'');
+  if(A.err&&!(pmode()==='code'&&m.open))return '<div class="hero bad"><div class="ic">!</div><div class="t">NOT CHECKED IN</div><div class="n">'+E(m.name)+'</div><div class="d">'+E(A.err)+'</div></div>'+(m.open?'<button class="btn" data-a="retry" style="margin-bottom:14px">Try again</button>':'')+
+    (m.open&&pmode()==='loc'?'<div class="card"><label class="l" for="code">Backup code from Coach</label><div class="wrow" style="margin:0"><div><input id="code" class="field" inputmode="numeric" pattern="[0-9]*" maxlength="2" autocomplete="off"></div><button class="btn sec" data-a="codeGo">Use code</button></div></div>':'');
   if(!m.open)return '<div class="hero info"><div class="t">Check-in is closed</div><div class="n">'+E(m.name)+'</div><div class="d">'+E(m.closedReason)+'</div></div>';
-  if(!m.needCode)return '<div class="hero info"><div class="t">Hi '+E(m.first)+'</div><div class="d">'+E(nice(m.date))+'</div></div><button class="btn" data-a="retry" style="margin-bottom:14px">Check in</button>';
+  if(pmode()!=='code')return '<div class="hero info"><div class="t">Hi '+E(m.first)+'</div><div class="d">'+E(nice(m.date))+'</div></div><button class="btn" data-a="retry" style="margin-bottom:14px">Check in</button>';
   return '<div class="card"><div style="font-size:22px;font-weight:800;margin-bottom:8px">Hi '+E(m.first)+'</div><label class="l" for="code">Type the 2-digit room code Coach is showing</label>'+
          '<input id="code" class="field big-id" inputmode="numeric" pattern="[0-9]*" maxlength="2" autocomplete="off">'+(A.err?'<div class="err">'+E(A.err)+'</div>':'')+'</div>'+
          '<button class="btn" data-a="codeGo" style="margin-bottom:14px">Check in</button>';
@@ -291,8 +309,14 @@ function busHtml(){
   var h='<div class="card"><h2>Bus · '+E(t.name)+' · '+leg+'</h2>';
   if(t.status==='On')h+='<div class="hero ok" style="margin:0;padding:16px"><div class="t" style="font-size:24px">✓ ON THE BUS</div><div class="d">'+E(t12(t.time))+'</div></div>';
   else if(t.status==='Released')h+='<div class="hero info" style="margin:0;padding:16px"><div class="d">Coach marked you <b>not riding</b>. If that is wrong, see Coach now.</div></div>';
-  else h+='<button class="btn" data-a="board">I\'m getting on the bus</button>'+(A.msg.bus?'<div class="err">'+E(A.msg.bus)+'</div>':'');
+  else h+=(pmode()==='code'?'':'<button class="btn" data-a="board">I\'m getting on the bus</button>')+(A.msg.bus?'<div class="err">'+E(A.msg.bus)+'</div>':'')+
+    (pmode()==='code'||(pmode()==='loc'&&A.msg.bus)?'<label class="l" for="bcode" style="margin-top:12px">'+(pmode()==='code'?'Type the 2-digit code Coach is showing':'Backup code from Coach')+'</label><div class="wrow" style="margin:0"><div><input id="bcode" class="field" inputmode="numeric" pattern="[0-9]*" maxlength="2" autocomplete="off"></div><button class="btn sec" data-a="boardCode">Board</button></div>':'');
   return h+'</div>';
+}
+
+function doBoard(proof){
+  A.busy=true;A.busyMsg='Getting you on the bus…';renderAthlete();
+  api('athleteBoard',A.sid,deviceId(),proof).then(function(r){A.busy=false;A.busyMsg='';if(r.me)A.me=r.me;A.msg=r.ok?{}:{bus:r.message};renderAthlete();});
 }
 
 /* ====================================================================== */
@@ -366,7 +390,9 @@ function renderDay(keep){
   var c=counts();
   h+='<div class="tiles">'+
      tile('out',c.out,'Not here')+tile('here',c.here,'Here')+tile('late',c.late,'Late')+tile('exc',c.exc,'Excused')+'</div>';
-  if(d.isToday&&d.codeRequired)h+='<div class="note code">Room code today: <b>'+E(d.code)+'</b> — say it out loud or write it on the board.</div>';
+  if(d.isToday&&d.presence==='code')h+='<div class="note code">Room code today: <b>'+E(d.code)+'</b> — say it out loud or write it on the board.</div>';
+  if(d.isToday&&d.presence==='loc')h+='<div class="note code">Backup code today: <b>'+E(d.code)+'</b> — only for an athlete whose phone cannot get its location.</div>';
+  if(d.isToday&&(d.presence==='loc'||d.presence==='loconly')&&!d.schoolSet)h+='<div class="err" style="margin:0 0 12px">The school location is not set, so phones cannot be checked. Go to More and set it while you are in the wrestling room.</div>';
   if(d.isToday)h+='<div class="note">'+(d.open?'<b style="color:#157a3c">● Athlete check-in is open.</b> Tap a name to mark someone yourself.':'<b>Athlete check-in is closed.</b> '+E(d.closedReason)+' You can still tap names.')+'</div>';
   h+='<input class="field" id="q" data-i="search" placeholder="Search name" value="'+E(C.q)+'" autocomplete="off" style="margin-bottom:12px;min-height:50px;font-size:18px">';
   h+='<div id="list"></div><div style="text-align:center"><button class="link" data-a="filterAll">'+(C.filter==='all'?'':'Show everyone')+'</button></div></div>'+nav();
@@ -382,7 +408,7 @@ function inFilter(a){
   if(C.filter==='exc')return a.status==='Excused';
   return true;
 }
-function tags(a){return 'Gr '+E(a.grade||'?')+(a.cleared?'':' · <span class="warn">Not cleared</span>')+(a.note?' · '+E(a.note):'');}
+function tags(a){return 'Gr '+E(a.grade||'?')+(a.cleared?'':' · <span class="warn">Not cleared</span>')+(a.method==='Self-Code'?' · used backup code':'')+(a.note?' · '+E(a.note):'');}
 function pill(a){
   var k=K(a.status);
   if(!k)return '<span class="pill p-none">Tap = here</span>';
@@ -513,6 +539,13 @@ function renderTrip(keep){
   var h='<div class="top"><h1>'+E(d.trip.name)+'</h1><div class="sub">'+E(nice(d.trip.date))+' · '+total+' athletes</div></div><div class="pad">';
   h+='<div class="seg" role="tablist"><button data-a="tripView" data-v="Depart" class="'+(leg==='Depart'?'on':'')+'">① Leaving school</button><button data-a="tripView" data-v="Return" class="'+(leg==='Return'?'on':'')+'">② Coming home</button></div>';
   if(d.trip.leg!==leg&&d.trip.leg!=='Done')h+='<div class="note">Athletes scanning the QR code are boarding <b>'+(d.trip.leg==='Return'?'the ride home':'the trip out')+'</b>. <button class="link" data-a="tripLeg" data-v="'+leg+'">Switch scanning to this leg</button></div>';
+  if(d.presence==='loc'||d.presence==='loconly'){
+    var set=leg==='Return'?d.trip.retSet:d.trip.depSet, own=leg==='Return'||d.trip.depOwn;
+    h+='<div class="note">'+(set?'<b style="color:#157a3c">● Athletes can scan to board</b> when their phone is at '+(own?'the spot you set':'the school')+'.':'<b>Scanning is off for this leg</b> until you set where the bus is.'+(d.presence==='loc'?' Athletes with the backup code can still board.':''))+
+       ' <button class="link" data-a="tripAnchor">'+(set&&own?'Reset to where I am':'The bus is here — use my location')+'</button>'+(d.presence==='loc'?'<br>Backup code: <b>'+E(d.code)+'</b>':'')+'</div>';
+  } else if(d.presence==='code'){
+    h+='<div class="note code">Code to board: <b>'+E(d.code)+'</b></div>';
+  }
   if(miss.length){
     h+='<div class="count"><div class="n">'+on+' <small>of '+(total-rel)+' on the bus</small></div><div class="m">'+miss.length+' MISSING'+(miss.length<=8?': '+E(miss.join(', ')):'')+'</div></div>';
   } else if(!hc||Number(hc.n)!==on){
@@ -525,7 +558,7 @@ function renderTrip(keep){
   }
   h+='<div class="rows">'+d.riders.map(function(r){
     var s=r[k], cls=s.status==='On'?'s-P':s.status==='Released'?'s-E':'s-A';
-    var p=s.status==='On'?'<span class="pill p-P">✓ On '+E(t12(s.time))+(s.self?' · scan':'')+'</span>':s.status==='Released'?'<span class="pill p-E">Not riding</span>':'<span class="pill p-A">NOT ON · tap</span>';
+    var p=s.status==='On'?'<span class="pill p-P">✓ On '+E(t12(s.time))+(s.code?' · code':s.self?' · scan':'')+'</span>':s.status==='Released'?'<span class="pill p-E">Not riding</span>':'<span class="pill p-A">NOT ON · tap</span>';
     var sub=s.status==='Released'&&s.note?E(s.note):(leg==='Return'&&r.dep.status!=='On'?'Did not ride out':'');
     return '<button class="row '+cls+(r._p?' pending':'')+'" data-a="tapRider" data-id="'+E(r.id)+'"><span class="nm">'+E(r.name)+(sub?'<small>'+sub+'</small>':'')+'</span>'+p+'</button>';
   }).join('')+'</div>';
@@ -543,6 +576,12 @@ function riderMark(id,status,note){
     renderTrip(true);
     if(C.pending===0)loadTrip(T.id,true);
   });
+}
+function setTripAnchor(leg,quiet){
+  var id=C.trip.id; if(!quiet)toast('Finding your location…');
+  locate().then(function(p){
+    api('coachTripAnchor',C.pin,id,leg,p.lat,p.lng).then(function(r){ if(!guard(r))return; if(!r.ok)return toast('NOT SAVED: '+r.message,null,true); toast('Bus location set. Athletes can scan to board here.'); if(C.trip&&C.trip.id===id)loadTrip(id,true); });
+  },function(why){toast((quiet?'Bus location not set: ':'')+why,null,true);});
 }
 function nowHM(){var d=new Date();return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);}
 function riderSheet(id){
@@ -654,8 +693,11 @@ function renderMore(){
     h+='<div class="card" style="margin-top:14px"><h2>Check-in rules</h2>';
     if(!d)h+='<div class="spin"></div>';
     else{
-      h+='<div class="switch"><span><b>Room code</b><br><span class="hint">Athletes must type a 2-digit code you show them. Stops check-ins from outside the room.</span></span><button data-a="cfgToggle" data-k="ROOM_CODE_REQUIRED" class="'+(d.codeRequired?'on':'')+'" aria-pressed="'+d.codeRequired+'">'+(d.codeRequired?'ON':'OFF')+'</button></div>'+
-         (d.codeRequired?'<div class="note code" style="margin-top:8px">Today\'s code: <b>'+E(d.code)+'</b></div>':'')+
+      var pm=d.presence||'off', opts=[['Location','loc','At school, code as backup'],['LocationOnly','loconly','At school only'],['Code','code','Code only'],['Off','off','Anywhere']];
+      var hint={loc:'The phone must be at the wrestling room. If a phone cannot get its location, you give that athlete today\'s backup code.',loconly:'The phone must be at the wrestling room. No backup code: if location fails, you tap the name.',code:'Athletes type the 2-digit code you show them. No location check.',off:'No check. Athletes can check in from anywhere.'}[pm];
+      h+='<b>Where athletes can check in</b><div class="chips" style="margin:8px 0">'+opts.map(function(o){return '<button class="chip'+(pm===o[1]?' on':'')+'" data-a="presence" data-v="'+o[0]+'" aria-pressed="'+(pm===o[1])+'">'+o[2]+'</button>';}).join('')+'</div><p class="hint" style="margin:0 0 10px">'+hint+' The same rule applies to boarding the bus.</p>'+
+         (pm==='loc'||pm==='code'?'<div class="note code">Today\'s code: <b>'+E(d.code)+'</b></div>':'')+
+         (pm==='loc'||pm==='loconly'?'<div class="'+(d.schoolSet?'note':'err')+'" style="margin:0 0 10px">School location: <b>'+(d.schoolSet?'set ✓':'NOT SET')+'</b></div><button class="btn sec" data-a="schoolAsk">Set school location to where I am standing</button>':'')+
          '<hr style="border:0;border-top:1px solid #d5dbe5;margin:12px 0"><div class="switch"><span><b>Open check-in today</b><br><span class="hint">For a Saturday or holiday practice. Normal days: '+E(d.settings.days)+'.</span></span><button data-a="cfgToggle" data-k="EXTRA_OPEN_DATE" class="'+(d.extraOpen?'on':'')+'" aria-pressed="'+d.extraOpen+'">'+(d.extraOpen?'ON':'OFF')+'</button></div>'+
          '<hr style="border:0;border-top:1px solid #d5dbe5;margin:12px 0"><div class="grid2"><div><label class="l" for="s1">Practice starts</label><input id="s1" class="field" type="time" data-c="cfg" data-k="PRACTICE_START" value="'+E(d.settings.start)+'"></div>'+
          '<div><label class="l" for="s2">Late after (min)</label><input id="s2" class="field" inputmode="numeric" data-c="cfg" data-k="LATE_AFTER_MIN" value="'+E(d.settings.late)+'"></div>'+
@@ -696,7 +738,7 @@ var act={
   'switch':function(){openSheet('<h3>Switch athlete?</h3><p>This phone is set up for '+E(A.me.name)+'. Only switch if this is not your phone setup. One phone can check in one athlete per day.</p><button class="btn danger" data-a="switchYes">Switch athlete</button><button class="btn ghost" data-a="close">Cancel</button>');},
   switchYes:function(){closeSheet();set('wp_sid','');A.sid='';A.me=null;A.err='';A.msg={};A.view='id';renderAthlete();},
   retry:function(){A.me=null;athleteStart();},
-  codeGo:function(){doCheckIn((document.getElementById('code').value||'').trim());},
+  codeGo:function(){var c=(document.getElementById('code').value||'').trim();if(!c)return;doCheckIn({code:c});},
   wtSave:function(ds){
     var el=document.getElementById('w'+ds.kind), v=el.value.trim().replace(',','.');
     A.msg={wt:'Saving…'};
@@ -707,9 +749,11 @@ var act={
     });
   },
   board:function(){
-    A.busy=true;renderAthlete();
-    api('athleteBoard',A.sid,deviceId()).then(function(r){A.busy=false;if(r.me)A.me=r.me;A.msg=r.ok?{}:{bus:r.message};renderAthlete();});
+    if(pmode()==='off')return doBoard({});
+    A.busy=true;A.busyMsg='Finding your location…';renderAthlete();
+    locate().then(doBoard,function(why){A.busy=false;A.busyMsg='';A.msg={bus:why+(pmode()==='loc'?' Or ask Coach for the backup code.':' Or see Coach to be marked on the bus.')};renderAthlete();});
   },
+  boardCode:function(){var c=(document.getElementById('bcode').value||'').trim();if(c)doBoard({code:c});},
   coachMode:function(){MODE='coach';coachStart();},
   athMode:function(){MODE='athlete';athleteStart();},
   coachRetry:function(){coachStart();},
@@ -740,7 +784,8 @@ var act={
   tripView:function(ds){C.trip.view=ds.v;renderTrip();},
   tripLeg:function(ds){
     var id=C.trip.id; C.trip.data.trip.leg=ds.v; if(ds.v==='Return')C.trip.view='Return'; renderTrip();
-    api('coachTripLeg',C.pin,id,ds.v).then(function(r){ if(!guard(r))return; if(!r.ok)toast('NOT SAVED: '+r.message,null,true); else if(ds.v==='Done'){toast('Trip finished.');} loadTrip(id,true); });
+    api('coachTripLeg',C.pin,id,ds.v).then(function(r){ if(!guard(r))return; if(!r.ok)toast('NOT SAVED: '+r.message,null,true); else if(ds.v==='Done'){toast('Trip finished.');} loadTrip(id,true);
+      if(r.ok&&ds.v==='Return'&&!C.trip.data.trip.retSet&&(C.trip.data.presence==='loc'||C.trip.data.presence==='loconly'))setTripAnchor('Return',true); });
   },
   tapRider:function(ds){var r=C.trip.data.riders.filter(function(x){return x.id===ds.id;})[0]; if(!r||r._p)return; if(!r[legKey()].status)riderMark(ds.id,'On'); else riderSheet(ds.id);},
   rider:function(ds){var n=document.getElementById('rnote'),note=n?n.value.trim():'';closeSheet();riderMark(ds.id,ds.s,ds.s==='Released'?note:'');},
@@ -777,10 +822,22 @@ var act={
   moreBack:function(){C.more='';C.err='';renderMore();},
   cfgToggle:function(ds){
     var d=C.day,k=ds.k,v;
-    if(k==='ROOM_CODE_REQUIRED'){d.codeRequired=!d.codeRequired;v=d.codeRequired?'Yes':'No';} else {d.extraOpen=!d.extraOpen;v=d.extraOpen?BOOT.today:'';}
+    d.extraOpen=!d.extraOpen;v=d.extraOpen?BOOT.today:'';
     renderMore();
     api('coachSetConfig',C.pin,k,v).then(function(r){ if(!guard(r))return; if(!r.ok)toast('NOT SAVED: '+r.message,null,true); loadDay(false,true); });
   },
+  presence:function(ds){
+    C.day.presence={Location:'loc',LocationOnly:'loconly',Code:'code',Off:'off'}[ds.v];renderMore();
+    api('coachSetConfig',C.pin,'PRESENCE_CHECK',ds.v).then(function(r){ if(!guard(r))return; if(!r.ok)toast('NOT SAVED: '+r.message,null,true); else toast('Saved.'); loadDay(false,true); });
+  },
+  schoolAsk:function(){openSheet('<h3>Set the school location?</h3><p>Only do this while you are standing in the wrestling room. Athletes will have to be near this spot to check in.</p><button class="btn" data-a="schoolSet">I am in the wrestling room — set it</button><button class="btn ghost" data-a="close">Cancel</button>');},
+  schoolSet:function(){
+    closeSheet();toast('Finding your location…');
+    locate().then(function(p){
+      api('coachSetSchool',C.pin,p.lat,p.lng).then(function(r){ if(!guard(r))return; if(!r.ok)return toast('NOT SAVED: '+r.message,null,true); toast('School location set (accurate to about '+Math.round(p.acc*1.09361)+' yards).'); loadDay(false,true); });
+    },function(why){toast(why,null,true);});
+  },
+  tripAnchor:function(){setTripAnchor(C.trip.view,false);},
   addSave:function(){
     var a={id:document.getElementById('aid').value.trim(),first:document.getElementById('afn').value.trim(),last:document.getElementById('aln').value.trim(),grade:document.getElementById('agr').value.trim()};
     api('coachAddAthlete',C.pin,a).then(function(r){ if(!guard(r))return; if(!r.ok){C.err=r.message;return renderMore();} C.err='';C.more='';C.day=null;renderMore();loadDay(false,true);toast(r.message||(a.first+' '+a.last+' added.')); });

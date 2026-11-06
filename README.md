@@ -26,6 +26,16 @@ No athlete names, IDs or weights are stored in this repository. All data lives i
 4. Deploy > New deployment > Web app. Execute as: Me. Who has access: Anyone. Deploy, and copy the web app URL (ends in `/exec`).
 5. Put that URL in `config.js` as `window.WP_API`.
 
+## How the app knows an athlete is really there
+
+Set under More > "Where athletes can check in" on the coach screens.
+
+- **At school, code as backup (default):** the athlete's phone must be within about 270 yards of the wrestling room. If a phone cannot get its location, the coach gives that athlete the day's 2-digit backup code.
+- **Bus, leaving:** same rule, measured from the school (or from the coach's phone if the coach sets the spot).
+- **Bus, coming home:** measured from the coach's phone, captured when the coach switches the trip to the ride home.
+- Phone coordinates are used for the check and are not saved. The Sheet records only whether location or the code was used.
+- A coach can always mark anyone by hand.
+
 ## Changing the data script later
 
 Paste the new `Code.gs`, then Deploy > Manage deployments > pencil > Version: New version > Deploy. The URL stays the same.

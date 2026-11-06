@@ -14,7 +14,7 @@ var TABS = {
   Athletes:   ['StudentID', 'FirstName', 'LastName', 'Grade', 'Eligible', 'Injured', 'Active'],
   Attendance: ['Date', 'StudentID', 'Name', 'Status', 'Time', 'Method', 'Note', 'DeviceID', 'UpdatedAt'],
   Weights:    ['Date', 'StudentID', 'Name', 'PreWeight', 'PreTime', 'PostWeight', 'PostTime', 'ChangeLb', 'ChangePct', 'EnteredBy'],
-  Trips:      ['TripID', 'Date', 'Name', 'Leg', 'Roster', 'Created'],
+  Trips:      ['TripID', 'Date', 'Name', 'Leg', 'Roster', 'Created', 'DepLat', 'DepLng', 'RetLat', 'RetLng'],
   TripLog:    ['TripID', 'StudentID', 'Name', 'Leg', 'Status', 'Time', 'Method', 'Note'],
   Config:     ['Key', 'Value', 'What it does']
 };
@@ -25,17 +25,21 @@ var DEFAULTS = [
   ['TIMEZONE', 'America/Phoenix', 'School time zone.'],
   ['PRACTICE_START', '16:00', 'Practice start, 24-hour time (16:00 = 4:00 PM).'],
   ['LATE_AFTER_MIN', '5', 'Minutes after start before a self check-in counts as Late.'],
-  ['CHECKIN_OPENS', '15:00', 'Earliest time athletes can check themselves in.'],
-  ['CHECKIN_CLOSES', '18:30', 'Latest time athletes can check themselves in.'],
+  ['CHECKIN_OPENS', '15:30', 'Earliest time athletes can check themselves in.'],
+  ['CHECKIN_CLOSES', '16:20', 'Latest time athletes can check themselves in.'],
   ['PRACTICE_DAYS', 'Mon,Tue,Wed,Thu,Fri', 'Days athletes can check themselves in. Coaches can mark any day.'],
   ['EXTRA_OPEN_DATE', '', 'Set from the app (More > Open check-in today) for a Saturday or holiday practice.'],
-  ['ROOM_CODE_REQUIRED', 'No', 'Yes = athletes must type the 2-digit code shown on the coach screen. Stops check-ins from outside the room.'],
+  ['PRESENCE_CHECK', 'Location', 'How athletes prove they are there. Location = phone must be at school, daily code as backup. LocationOnly = no backup code. Code = type the daily code. Off = anywhere.'],
+  ['SCHOOL_LAT', '', 'Latitude of the wrestling room. Set from the app: More > Set school location.'],
+  ['SCHOOL_LNG', '', 'Longitude of the wrestling room.'],
+  ['SCHOOL_RADIUS_M', '250', 'How close to the wrestling room a phone must be, in meters (250 m is about 270 yards).'],
+  ['BUS_RADIUS_M', '200', 'How close to the bus a phone must be to board by scanning, in meters.'],
   ['WEIGHT_LOSS_FLAG_PCT', '3', 'Flag an athlete whose weight drops more than this percent in one practice.'],
   ['OLD_SHEET_ID', '', 'ID of the old attendance Sheet. The roster is copied from its Athletes tab.'],
   ['SITE_URL', 'https://jerry-d-ball.github.io/wrestling-checkin/', 'Address of the app website. This is what the QR code points to.']
 ];
 
-var EDITABLE_KEYS = ['ROOM_CODE_REQUIRED', 'EXTRA_OPEN_DATE', 'PRACTICE_START', 'LATE_AFTER_MIN', 'CHECKIN_OPENS', 'CHECKIN_CLOSES'];
+var EDITABLE_KEYS = ['PRESENCE_CHECK', 'EXTRA_OPEN_DATE', 'PRACTICE_START', 'LATE_AFTER_MIN', 'CHECKIN_OPENS', 'CHECKIN_CLOSES'];
 
 var __now = null;      // tests only
 var __memo = {};
@@ -167,7 +171,7 @@ function athleteState(studentId, deviceId) {
   });
 }
 
-function athleteCheckIn(studentId, deviceId, code) {
+function athleteCheckIn(studentId, deviceId, proof) {
   return safe_(function () {
     var a = athlete_(studentId);
     if (!a) return { ok: false, error: 'NOT_FOUND', message: 'That ID is not on the wrestling roster. See Coach.' };
@@ -177,12 +181,11 @@ function athleteCheckIn(studentId, deviceId, code) {
       if (existing && (existing.Status === 'Present' || existing.Status === 'Late')) return { ok: true, already: true, me: stateFor_(a, deviceId) };
       var w = window_();
       if (!w.open) return { ok: false, error: 'CLOSED', message: w.reason, me: stateFor_(a, deviceId) };
-      if (isYes_(cfg_('ROOM_CODE_REQUIRED')) && String(code || '').trim() !== roomCode_(day)) {
-        return { ok: false, error: 'CODE', message: code ? 'That is not today\'s room code. Look at the code Coach is showing.' : 'Enter the 2-digit room code from Coach.', me: stateFor_(a, deviceId) };
-      }
-      var other = deviceId && find_('Attendance', function (r) { return r.Date === day && r.DeviceID === deviceId && r.StudentID !== a.id && r.Method === 'Self'; });
+      var pr = presence_(schoolAnchor_(), proof, day);
+      if (!pr.ok) return { ok: false, error: pr.error, message: pr.message, me: stateFor_(a, deviceId) };
+      var other = deviceId && find_('Attendance', function (r) { return r.Date === day && r.DeviceID === deviceId && r.StudentID !== a.id && /^Self/.test(r.Method); });
       if (other) return { ok: false, error: 'DEVICE', message: 'This phone already checked in ' + other.Name + ' today. One phone, one athlete. See Coach to be marked here.', me: stateFor_(a, deviceId) };
-      var rec = { Date: day, StudentID: a.id, Name: a.name, Status: w.late ? 'Late' : 'Present', Time: nowTime_(), Method: 'Self', Note: '', DeviceID: deviceId || '', UpdatedAt: stamp_() };
+      var rec = { Date: day, StudentID: a.id, Name: a.name, Status: w.late ? 'Late' : 'Present', Time: nowTime_(), Method: 'Self-' + pr.by, Note: '', DeviceID: deviceId || '', UpdatedAt: stamp_() };
       if (existing) update_('Attendance', existing._row, rec); else append_('Attendance', rec);
       return { ok: true, me: stateFor_(a, deviceId) };
     });
@@ -199,18 +202,22 @@ function athleteWeight(studentId, kind, value) {
   });
 }
 
-function athleteBoard(studentId, deviceId) {
+function athleteBoard(studentId, deviceId, proof) {
   return safe_(function () {
     var a = athlete_(studentId);
     if (!a) return { ok: false, error: 'NOT_FOUND', message: 'That ID is not on the roster. See Coach.' };
     return locked_(function () {
       var t = tripForAthlete_(a.id);
       if (!t) return { ok: false, error: 'NO_TRIP', message: 'No bus is boarding for you right now. See Coach.', me: stateFor_(a, deviceId) };
+      var done = find_('TripLog', function (r) { return r.TripID === t.TripID && r.Leg === t.Leg && r.StudentID === a.id && r.Status === 'On'; });
+      if (done) return { ok: true, me: stateFor_(a, deviceId) };
+      var pr = presence_(tripAnchor_(t), proof, today_());
+      if (!pr.ok) return { ok: false, error: pr.error, message: pr.message, me: stateFor_(a, deviceId) };
       var tag = 'Self:' + (deviceId || '');
       var other = deviceId && find_('TripLog', function (r) { return r.TripID === t.TripID && r.Leg === t.Leg && r.Method === tag && r.StudentID !== a.id; });
       if (other) return { ok: false, error: 'DEVICE', message: 'This phone already boarded ' + other.Name + '. See Coach to be marked on the bus.', me: stateFor_(a, deviceId) };
       var ex = find_('TripLog', function (r) { return r.TripID === t.TripID && r.Leg === t.Leg && r.StudentID === a.id; });
-      var rec = { TripID: t.TripID, StudentID: a.id, Name: a.name, Leg: t.Leg, Status: 'On', Time: nowTime_(), Method: tag, Note: '' };
+      var rec = { TripID: t.TripID, StudentID: a.id, Name: a.name, Leg: t.Leg, Status: 'On', Time: nowTime_(), Method: tag, Note: pr.by === 'Code' ? 'code' : '' };
       if (ex) { if (ex.Status !== 'On') update_('TripLog', ex._row, rec); } else append_('TripLog', rec);
       return { ok: true, me: stateFor_(a, deviceId) };
     });
@@ -229,7 +236,7 @@ function stateFor_(a, deviceId) {
   return {
     id: a.id, first: a.first, name: a.first + ' ' + a.last, date: day,
     status: att ? att.Status : '', time: att ? att.Time : '',
-    open: w.open, closedReason: w.open ? '' : w.reason, needCode: isYes_(cfg_('ROOM_CODE_REQUIRED')),
+    open: w.open, closedReason: w.open ? '' : w.reason, presence: presenceMode_(),
     pre: wt ? wt.PreWeight : '', post: wt ? wt.PostWeight : '', change: wt ? wt.ChangeLb : '',
     trip: trip
   };
@@ -257,7 +264,7 @@ function coachDay(pin, date) {
     });
     var w = window_();
     return { ok: true, date: day, today: today_(), isToday: day === today_(), athletes: list,
-             codeRequired: isYes_(cfg_('ROOM_CODE_REQUIRED')), code: roomCode_(day),
+             presence: presenceMode_(), schoolSet: !!schoolAnchor_(), code: roomCode_(day),
              open: w.open, closedReason: w.reason || '', extraOpen: cfg_('EXTRA_OPEN_DATE') === today_(),
              flagPct: Number(cfg_('WEIGHT_LOSS_FLAG_PCT')) || 3,
              settings: { start: cfg_('PRACTICE_START'), late: cfg_('LATE_AFTER_MIN'), opens: cfg_('CHECKIN_OPENS'), closes: cfg_('CHECKIN_CLOSES'), days: cfg_('PRACTICE_DAYS') } };
@@ -297,13 +304,24 @@ function coachSetConfig(pin, key, value) {
     value = String(value == null ? '' : value).trim();
     if (/^(PRACTICE_START|CHECKIN_OPENS|CHECKIN_CLOSES)$/.test(key) && !/^([01]?\d|2[0-3]):[0-5]\d$/.test(value)) return { ok: false, message: 'Use a time like 16:00.' };
     if (key === 'LATE_AFTER_MIN' && !/^\d{1,3}$/.test(value)) return { ok: false, message: 'Use a number of minutes.' };
-    return locked_(function () {
-      var row = find_('Config', function (r) { return r.Key === key; });
-      if (row) update_('Config', row._row, { Value: value }); else append_('Config', { Key: key, Value: value });
-      __memo = {};
-      return { ok: true };
-    });
+    if (key === 'PRESENCE_CHECK' && ['Location', 'LocationOnly', 'Code', 'Off'].indexOf(value) < 0) return { ok: false, message: 'Unknown setting.' };
+    return locked_(function () { setCfg_(key, value); return { ok: true }; });
   });
+}
+
+/** Sets the school check-in point to where the coach's phone is. */
+function coachSetSchool(pin, lat, lng) {
+  return coach_(pin, function () {
+    lat = num_(lat); lng = num_(lng);
+    if (!okLatLng_(lat, lng)) return { ok: false, message: 'Could not read a location from this phone.' };
+    return locked_(function () { setCfg_('SCHOOL_LAT', lat.toFixed(6)); setCfg_('SCHOOL_LNG', lng.toFixed(6)); return { ok: true }; });
+  });
+}
+
+function setCfg_(key, value) {
+  var row = find_('Config', function (r) { return r.Key === key; });
+  if (row) update_('Config', row._row, { Value: value }); else append_('Config', { Key: key, Value: value });
+  __memo = {};
 }
 
 function coachAddAthlete(pin, a) {
@@ -445,7 +463,7 @@ function coachTrip(pin, tripId) {
     var logs = read_('TripLog').rows.filter(function (l) { return l.TripID === tripId; });
     var cell = function (id, leg) {
       var l = logs.filter(function (x) { return x.StudentID === id && x.Leg === leg; })[0];
-      return l ? { status: l.Status, time: l.Time, self: /^Self/.test(l.Method), note: l.Note } : { status: '' };
+      return l ? { status: l.Status, time: l.Time, self: /^Self/.test(l.Method), code: /^Self/.test(l.Method) && l.Note === 'code', note: l.Note } : { status: '' };
     };
     var riders = tripRoster_(t).map(function (id) {
       var a = by[id];
@@ -453,7 +471,9 @@ function coachTrip(pin, tripId) {
     }).sort(function (x, y) { return x.name < y.name ? -1 : 1; });
     var hc = {};
     logs.forEach(function (l) { if (l.Status === 'HeadCount') hc[l.Leg] = { n: l.Note, time: l.Time }; });
-    return { ok: true, trip: { id: t.TripID, date: t.Date, name: t.Name, leg: t.Leg, roster: tripRoster_(t) }, riders: riders, headcount: hc };
+    return { ok: true, trip: { id: t.TripID, date: t.Date, name: t.Name, leg: t.Leg, roster: tripRoster_(t),
+                               depSet: !!tripAnchor_(t, 'Depart'), depOwn: isFinite(num_(t.DepLat)), retSet: !!tripAnchor_(t, 'Return') },
+             riders: riders, headcount: hc, presence: presenceMode_(), code: roomCode_(today_()) };
   });
 }
 
@@ -481,6 +501,22 @@ function coachTripLeg(pin, tripId, leg) {
       var t = find_('Trips', function (r) { return r.TripID === tripId; });
       if (!t) return { ok: false, message: 'Trip not found.' };
       update_('Trips', t._row, { Leg: leg });
+      return { ok: true };
+    });
+  });
+}
+
+/** Sets where the bus is for one leg (the coach's phone location). Athletes must be near it to board by scanning. */
+function coachTripAnchor(pin, tripId, leg, lat, lng) {
+  return coach_(pin, function () {
+    if (['Depart', 'Return'].indexOf(leg) < 0) return { ok: false, message: 'Bad request.' };
+    lat = num_(lat); lng = num_(lng);
+    if (!okLatLng_(lat, lng)) return { ok: false, message: 'Could not read a location from this phone.' };
+    return locked_(function () {
+      ensureCols_('Trips');
+      var t = find_('Trips', function (r) { return r.TripID === tripId; });
+      if (!t) return { ok: false, message: 'Trip not found.' };
+      update_('Trips', t._row, leg === 'Return' ? { RetLat: lat.toFixed(6), RetLng: lng.toFixed(6) } : { DepLat: lat.toFixed(6), DepLng: lng.toFixed(6) });
       return { ok: true };
     });
   });
@@ -579,6 +615,82 @@ function window_() {
   if (mins < hm_(cfg_('CHECKIN_OPENS'), 900)) return { open: false, reason: 'Check-in opens at ' + pretty_(cfg_('CHECKIN_OPENS')) + '.' };
   if (mins > hm_(cfg_('CHECKIN_CLOSES'), 1110)) return { open: false, reason: 'Check-in closed at ' + pretty_(cfg_('CHECKIN_CLOSES')) + '. See Coach to be marked.' };
   return { open: true, late: late };
+}
+
+/* ---------- proof of presence: location first, daily code as backup ---------- */
+
+function presenceMode_() {
+  var v = cfg_('PRESENCE_CHECK').replace(/\s/g, '').toLowerCase();
+  if (v === 'off' || v === 'anywhere' || v === 'no') return 'off';
+  if (v === 'code') return 'code';
+  if (v === 'locationonly') return 'loconly';
+  return 'loc';
+}
+
+function schoolAnchor_() {
+  var lat = num_(cfg_('SCHOOL_LAT')), lng = num_(cfg_('SCHOOL_LNG'));
+  if (!okLatLng_(lat, lng)) return null;
+  return { lat: lat, lng: lng, radius: Number(cfg_('SCHOOL_RADIUS_M')) || 250, name: 'the wrestling room' };
+}
+
+/** Where the bus is for a leg. Leaving defaults to the school; the ride home must be set by the coach. */
+function tripAnchor_(t, leg) {
+  leg = leg || t.Leg;
+  var r = Number(cfg_('BUS_RADIUS_M')) || 200;
+  if (leg === 'Return') return okLatLng_(num_(t.RetLat), num_(t.RetLng)) ? { lat: num_(t.RetLat), lng: num_(t.RetLng), radius: r, name: 'the bus' } : null;
+  if (okLatLng_(num_(t.DepLat), num_(t.DepLng))) return { lat: num_(t.DepLat), lng: num_(t.DepLng), radius: r, name: 'the bus' };
+  var s = schoolAnchor_();
+  return s ? { lat: s.lat, lng: s.lng, radius: s.radius, name: 'the school' } : null;
+}
+
+/**
+ * Decides whether a self check-in / self boarding may go ahead.
+ * proof = { lat, lng, acc, code } from the athlete's phone (any part may be missing).
+ * Coordinates are used for the check and then thrown away; they are never saved.
+ */
+function presence_(anchor, proof, day) {
+  var mode = presenceMode_();
+  if (mode === 'off') return { ok: true, by: 'Open' };
+  if (typeof proof === 'string') proof = { code: proof };
+  proof = proof || {};
+  var code = String(proof.code == null ? '' : proof.code).trim();
+  var codeOk = code !== '' && code === roomCode_(day);
+  if (mode === 'code') {
+    return codeOk ? { ok: true, by: 'Code' }
+                  : { ok: false, error: 'CODE', message: code ? 'That is not today\'s code. Look at the code Coach is showing.' : 'Enter the 2-digit code from Coach.' };
+  }
+  var lat = num_(proof.lat), lng = num_(proof.lng), acc = num_(proof.acc), why;
+  if (!anchor) why = { error: 'LOC_UNSET', message: 'Coach has not set the location for this yet.' };
+  else if (!okLatLng_(lat, lng)) why = { error: 'LOC_NEEDED', message: 'This phone did not share its location.' };
+  else if (isFinite(acc) && acc > 1500) why = { error: 'LOC_VAGUE', message: 'This phone could not get a good location fix.' };
+  else {
+    var d = distM_(lat, lng, anchor.lat, anchor.lng), slack = Math.min(isFinite(acc) && acc > 0 ? acc : 0, 150);
+    if (d <= anchor.radius + slack) return { ok: true, by: 'GPS' };
+    why = { error: 'LOC_FAR', message: 'This phone looks about ' + far_(d) + ' from ' + anchor.name + '.' };
+  }
+  if (mode === 'loc') {
+    if (codeOk) return { ok: true, by: 'Code' };
+    if (code !== '') return { ok: false, error: 'CODE', message: 'That is not today\'s backup code. Ask Coach for it.' };
+    why.message += ' Try again, or ask Coach for the backup code.';
+  } else {
+    why.message += ' Try again, or see Coach to be marked.';
+  }
+  why.ok = false;
+  return why;
+}
+
+function distM_(lat1, lng1, lat2, lng2) {
+  var R = 6371000, k = Math.PI / 180, dLat = (lat2 - lat1) * k, dLng = (lng2 - lng1) * k;
+  var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * k) * Math.cos(lat2 * k) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+function far_(m) { return m < 1500 ? (Math.round(m * 1.09361 / 10) * 10) + ' yards' : (m / 1609.34).toFixed(1) + ' miles'; }
+function num_(v) { return (v === '' || v == null) ? NaN : Number(v); }
+function okLatLng_(lat, lng) { return isFinite(lat) && isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && !(lat === 0 && lng === 0); }
+
+function ensureCols_(name) {
+  var head = read_(name).head;
+  if (TABS[name].some(function (h) { return head.indexOf(h) < 0; })) { addMissingHeaders_(sheet_(name), TABS[name]); delete __memo['t:' + name]; }
 }
 
 function roomCode_(day) {
@@ -719,6 +831,7 @@ function appUrl_() { return cfg_('SITE_URL'); }
 var API_ = {
   athleteState: athleteState, athleteCheckIn: athleteCheckIn, athleteWeight: athleteWeight, athleteBoard: athleteBoard,
   coachLogin: coachLogin, coachDay: coachDay, coachMark: coachMark, coachWeight: coachWeight, coachSetConfig: coachSetConfig,
+  coachSetSchool: coachSetSchool, coachTripAnchor: coachTripAnchor,
   coachAddAthlete: coachAddAthlete, coachSetActive: coachSetActive, coachRoster: coachRoster,
   coachReport: coachReport, coachAthlete: coachAthlete, coachExport: coachExport,
   coachTrips: coachTrips, coachTripSave: coachTripSave, coachTrip: coachTrip, coachTripMark: coachTripMark,

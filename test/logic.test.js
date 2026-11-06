@@ -9,6 +9,7 @@ let n=0; const ok=(c,m)=>{n++;assert.ok(c,m);};
 run('__seedOld()');
 at('2026-11-05T22:40:00Z');                       // Thu 3:40 PM Phoenix
 run("var c=__book.insertSheet('Config');c.appendRow(['Key','Value','What it does']);c.appendRow(['OLD_SHEET_ID','OLDID','']);");
+run("c.appendRow(['PRESENCE_CHECK','Off',''])");
 const msg=run('setup()'); ok(/18 athletes added/.test(msg),msg);
 ok(/^\d{6}$/.test(run("cfg_('COACH_PIN')")),'pin generated');
 run("__book.getSheetByName('Config').data.forEach(function(r){if(r[0]==='COACH_PIN')r[1]='123456'})");
@@ -23,19 +24,20 @@ ok(run("__book.getSheetByName('Attendance').data.length")===2,'no duplicate atte
 r=run("athleteCheckIn('300101','d1','')"); ok(!r.ok&&r.error==='DEVICE','one phone cannot check in two athletes');
 at('2026-11-05T23:06:00Z'); r=run("athleteCheckIn('300101','d2','')"); ok(r.ok&&r.me.status==='Late','4:06 is late');
 at('2026-11-05T23:05:00Z'); r=run("athleteCheckIn('300102','d3','')"); ok(r.ok&&r.me.status==='Present','4:05 is on time');
-at('2026-11-06T02:00:00Z'); r=run("athleteCheckIn('300103','d4','')"); ok(!r.ok&&r.error==='CLOSED'&&/closed at 6:30 PM/.test(r.message),'closed after 6:30');
-at('2026-11-05T21:00:00Z'); r=run("athleteCheckIn('300103','d4','')"); ok(!r.ok&&/opens at 3:00 PM/.test(r.message),'not open before 3');
+at('2026-11-05T23:21:00Z'); r=run("athleteCheckIn('300103','d4','')"); ok(!r.ok&&r.error==='CLOSED'&&/closed at 4:20 PM/.test(r.message),'closed after 4:20');
+at('2026-11-05T22:29:00Z'); r=run("athleteCheckIn('300103','d4','')"); ok(!r.ok&&/opens at 3:30 PM/.test(r.message),'not open before 3:30');
+at('2026-11-05T23:20:00Z'); ok(run("window_()").open,'4:20 still open');
 at('2026-11-07T23:00:00Z'); r=run("athleteCheckIn('300103','d4','')"); ok(!r.ok&&r.error==='CLOSED','Saturday closed');
 ok(run(`coachSetConfig('${P}','EXTRA_OPEN_DATE','2026-11-07')`).ok,'open Saturday');
 r=run("athleteCheckIn('300103','d4','')"); ok(r.ok&&r.me.status==='Present','Saturday open when coach opens it');
 at('2026-11-05T22:50:00Z');
 // room code
-ok(run(`coachSetConfig('${P}','ROOM_CODE_REQUIRED','Yes')`).ok,'code on');
+ok(run(`coachSetConfig('${P}','PRESENCE_CHECK','Code')`).ok,'code on');
 const code=run(`coachDay('${P}','${D}')`).code; ok(/^\d\d$/.test(code),'2 digit code');
 ok(run("athleteCheckIn('300104','d5','')").error==='CODE','code required');
 ok(run("athleteCheckIn('300104','d5','00')").error==='CODE','wrong code');
 ok(run(`athleteCheckIn('300104','d5','${code}')`).ok,'right code');
-run(`coachSetConfig('${P}','ROOM_CODE_REQUIRED','No')`);
+run(`coachSetConfig('${P}','PRESENCE_CHECK','Off')`);
 // --- coach
 ok(run("coachDay('000000','')").error==='PIN','bad pin rejected');
 ok(run("coachMark('000000','','300105','Present')").error==='PIN','bad pin cannot write');
@@ -105,6 +107,51 @@ run("__book.getSheetByName('Attendance').data.push(['11/9/2026','300100','Marco 
 at('2026-11-09T23:30:00Z'); r=run("athleteState('300100','q')"); ok(r.me.status==='Present'&&r.me.time==='15:58','reads reformatted date/time');
 // header added by a human in different column order still works
 ok(run("normDate_('2026-1-5')")==='2026-01-05','normDate');
+// --- proof of presence (location, backup code)
+at('2026-11-10T22:45:00Z'); const D2='2026-11-10';   // Tue 3:45 PM
+const here='{lat:33.4735,lng:-112.3085,acc:20}', far='{lat:33.4484,lng:-112.0740,acc:15}', hall='{lat:33.4760,lng:-112.3085,acc:120}';
+ok(run(`coachSetConfig('${P}','PRESENCE_CHECK','Nonsense')`).ok===false,'bad presence value rejected');
+run(`coachSetConfig('${P}','PRESENCE_CHECK','Location')`);
+ok(run("athleteState('300108','g1')").me.presence==='loc','state reports mode');
+ok(run(`athleteCheckIn('300108','g1',${here})`).error==='LOC_UNSET','no school location yet');
+ok(run(`coachSetSchool('000000',1,1)`).error==='PIN'&&run(`coachSetSchool('${P}',0,0)`).ok===false,'set school guarded');
+ok(run(`coachSetSchool('${P}',33.473388,-112.308543)`).ok&&run(`coachDay('${P}','')`).schoolSet,'school set');
+r=run(`athleteCheckIn('300108','g1',${far})`); ok(r.error==='LOC_FAR'&&/miles from the wrestling room/.test(r.message)&&/backup code/.test(r.message),'far away blocked: '+r.message);
+ok(run("athleteCheckIn('300108','g1',{})").error==='LOC_NEEDED','no coordinates blocked');
+ok(run("athleteCheckIn('300108','g1',{lat:33.4735,lng:-112.3085,acc:5000})").error==='LOC_VAGUE','vague fix blocked');
+ok(run("athleteCheckIn('300108','g1',{lat:'x',lng:null})").error==='LOC_NEEDED','garbage coordinates blocked');
+r=run(`athleteCheckIn('300108','g1',${here})`); ok(r.ok&&r.me.status==='Present','at school checks in');
+ok(run("find_('Attendance',function(x){return x.Date==='2026-11-10'&&x.StudentID==='300108'})").Method==='Self-GPS','method recorded');
+ok(run("__book.getSheetByName('Attendance').data.every(function(x){return x.join('|').indexOf('33.47')<0})"),'coordinates are not stored');
+ok(run(`athleteCheckIn('300109','g2',${hall})`).ok,'290 m away with a 120 m fix still counts (indoor slack)');
+ok(run("athleteCheckIn('300110','g3',{lat:33.4790,lng:-112.3085,acc:10})").error==='LOC_FAR','620 m away with a good fix does not');
+const c2=run(`coachDay('${P}','${D2}')`).code;
+ok(run("athleteCheckIn('300110','g3',{code:'00'})").error==='CODE','wrong backup code');
+r=run(`athleteCheckIn('300110','g3',{lat:33.4484,lng:-112.0740,acc:15,code:'${c2}'})`); ok(r.ok,'backup code works when location fails');
+ok(run(`coachDay('${P}','${D2}')`).athletes.find(a=>a.id==='300110').method==='Self-Code','coach can see who used the code');
+ok(run(`athleteCheckIn('300111','g3',${here})`).error==='DEVICE','device rule still applies');
+run(`coachSetConfig('${P}','PRESENCE_CHECK','LocationOnly')`);
+r=run(`athleteCheckIn('300111','g4',{lat:33.4484,lng:-112.0740,acc:15,code:'${c2}'})`); ok(r.error==='LOC_FAR'&&/see Coach/.test(r.message),'location-only ignores the code');
+ok(run(`coachMark('${P}','${D2}','300111','Present',null)`).ok,'coach can always mark by hand');
+// bus: leaving uses the school, the ride home needs the coach to set the spot
+run(`coachSetConfig('${P}','PRESENCE_CHECK','Location')`);
+at('2026-11-10T20:00:00Z');
+const T2=run(`coachTripSave('${P}',{name:'Away dual',date:'${D2}',roster:['300108','300109','300110']})`).id;
+tr=run(`coachTrip('${P}','${T2}')`); ok(tr.trip.depSet===true&&tr.trip.retSet===false&&tr.presence==='loc','leaving defaults to school, return unset');
+ok(run(`athleteBoard('300108','g1',${far})`).error==='LOC_FAR','cannot board from across town');
+ok(run(`athleteBoard('300108','g1',${here})`).ok,'boards at school');
+ok(run(`athleteBoard('300108','g1',${far})`).ok,'already boarded stays boarded');
+run(`coachTripLeg('${P}','${T2}','Return')`);
+const venue='{lat:33.6000,lng:-112.2000,acc:25}';
+ok(run(`athleteBoard('300108','g1',${venue})`).error==='LOC_UNSET','ride home blocked until coach sets the spot');
+ok(run(`athleteBoard('300108','g1',{code:'${c2}'})`).ok,'backup code boards the ride home');
+ok(run(`coachTripAnchor('${P}','${T2}','Return',33.6001,-112.2001)`).ok,'coach sets the pickup spot');
+ok(run("__book.getSheetByName('Trips').data[0].indexOf('RetLat')>=0"),'trip columns added to an existing tab');
+ok(run(`athleteBoard('300109','g2',${venue})`).ok,'boards at the venue');
+ok(run(`athleteBoard('300110','g3',${here})`).error==='LOC_FAR','still at school cannot board the ride home');
+tr=run(`coachTrip('${P}','${T2}')`); ok(tr.trip.retSet&&tr.riders.find(x=>x.id==='300108').ret.code===true&&tr.riders.find(x=>x.id==='300109').ret.code===false,'trip view shows who used the code');
+run(`coachSetConfig('${P}','PRESENCE_CHECK','Off')`); ok(run("athleteBoard('300110','g3',{})").ok,'off = anywhere');
+ok(run("presence_(null,'"+c2+"','"+D2+"')").ok===true,'off mode ignores everything');
 // --- web entry point
 const post=(o)=>JSON.parse(run(`doPost({postData:{contents:${JSON.stringify(JSON.stringify(o))}}})`).__text);
 ok(post({fn:'athleteState',args:['300100','q']}).ok,'doPost routes');
@@ -112,6 +159,7 @@ ok(post({fn:'cfg_',args:['COACH_PIN']}).error==='BAD','private helpers are not c
 ok(post({fn:'setup',args:[]}).error==='BAD','setup is not callable from the web');
 ok(post({fn:'constructor',args:[]}).error==='BAD','object internals are not callable');
 ok(post({fn:'coachDay',args:['000000','']}).error==='PIN','doPost enforces the PIN');
+ok(post({fn:'coachSetSchool',args:['000000',33,-112]}).error==='PIN'&&post({fn:'presence_',args:[]}).error==='BAD','new endpoints guarded');
 ok(run("doPost({postData:{contents:'not json'}})").__text.includes('SERVER'),'bad body handled');
 ok(run("showLinks()").includes('https://jerry-d-ball.github.io/wrestling-checkin/?p=coach'),'links point at the site');
 console.log('ALL',n,'CHECKS PASSED');
