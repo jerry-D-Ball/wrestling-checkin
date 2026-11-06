@@ -1,10 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <rect width="512" height="512" fill="#111111"/>
-  <circle cx="256" cy="256" r="182" fill="#1c1c1c" stroke="#c8102e" stroke-width="26"/>
-  <circle cx="256" cy="256" r="150" fill="none" stroke="#ffffff" stroke-opacity="0.14" stroke-width="3"/>
-  <g transform="translate(256 250) scale(0.8) translate(-278.5 -265)">
+  <g transform="translate(0 36)">
+  <circle cx="256" cy="236" r="172" fill="#1c1c1c" stroke="#c8102e" stroke-width="24"/>
+  <g transform="translate(256 208) scale(0.78) translate(-278.5 -265)">
     <path fill="#ffffff" d="M112 181 L149 181 L168 283 L190 199 L226 199 L248 283 L267 181 L304 181 L270 349 L232 349 L208 258 L184 349 L146 349 Z"/>
     <path fill="none" stroke="#ffffff" stroke-width="36" stroke-linejoin="miter" d="M340 349 L340 199 L384 199 A43 43 0 0 1 384 285 L340 285"/>
   </g>
-  <path d="M190 352 L322 352" stroke="#c8102e" stroke-width="12" stroke-linecap="round"/>
+  <rect x="58" y="318" width="396" height="104" rx="14" fill="#c8102e" stroke="#111111" stroke-width="10"/>
+  <text x="256" y="392" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-weight="900" font-size="62" fill="#ffffff" textLength="318" lengthAdjust="spacingAndGlyphs">WRESTLING</text>
+  </g>
 </svg>
