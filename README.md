@@ -26,6 +26,10 @@ No athlete names, IDs or weights are stored in this repository. All data lives i
 4. Deploy > New deployment > Web app. Execute as: Me. Who has access: Anyone. Deploy, and copy the web app URL (ends in `/exec`).
 5. Put that URL in `config.js` as `window.WP_API`.
 
+## Practice times
+
+Practice alternates weekly between an early slot (4:00) and a late slot (6:00). The `Schedule` tab holds one row per practice day (`Date`, `Start`, `End`, `Note`; `Start` = `OFF` for no practice). Days with no row follow `PRACTICE_DAYS` and `DEFAULT_SLOT` in Config. Coaches set days from More > Practice schedule, including Saturdays and holidays; "Fill ahead" lays out four alternating weeks. Check-in opens 30 minutes before the start, marks Late after 5, and closes 20 minutes after (all in Config).
+
 ## How the app knows an athlete is really there
 
 Set under More > "Where athletes can check in" on the coach screens.

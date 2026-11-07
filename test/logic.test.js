@@ -25,11 +25,32 @@ r=run("athleteCheckIn('300101','d1','')"); ok(!r.ok&&r.error==='DEVICE','one pho
 at('2026-11-05T23:06:00Z'); r=run("athleteCheckIn('300101','d2','')"); ok(r.ok&&r.me.status==='Late','4:06 is late');
 at('2026-11-05T23:05:00Z'); r=run("athleteCheckIn('300102','d3','')"); ok(r.ok&&r.me.status==='Present','4:05 is on time');
 at('2026-11-05T23:21:00Z'); r=run("athleteCheckIn('300103','d4','')"); ok(!r.ok&&r.error==='CLOSED'&&/closed at 4:20 PM/.test(r.message),'closed after 4:20');
-at('2026-11-05T22:29:00Z'); r=run("athleteCheckIn('300103','d4','')"); ok(!r.ok&&/opens at 3:30 PM/.test(r.message),'not open before 3:30');
+ok(r.me.practice.start==='16:00'&&r.me.practice.end==='18:00','athlete told practice time');
+at('2026-11-05T22:29:00Z'); r=run("athleteCheckIn('300103','d4','')"); ok(!r.ok&&/Practice is at 4:00 PM today. Check-in opens at 3:30 PM/.test(r.message),'not open before 3:30');
 at('2026-11-05T23:20:00Z'); ok(run("window_()").open,'4:20 still open');
 at('2026-11-07T23:00:00Z'); r=run("athleteCheckIn('300103','d4','')"); ok(!r.ok&&r.error==='CLOSED','Saturday closed');
-ok(run(`coachSetConfig('${P}','EXTRA_OPEN_DATE','2026-11-07')`).ok,'open Saturday');
+ok(run(`coachSetDay('${P}','2026-11-07','early','','Ice bath Saturday')`).ok,'open Saturday');
 r=run("athleteCheckIn('300103','d4','')"); ok(r.ok&&r.me.status==='Present','Saturday open when coach opens it');
+r=run("athleteState('300103','d4')"); ok(r.me.practice.note==='Ice bath Saturday','note shown');
+// --- schedule: late week, custom day, off day, fill ahead
+at('2026-11-10T00:30:00Z');   // Mon Nov 9, 5:30 PM Phoenix
+ok(run(`coachSetDay('${P}','2026-11-09','late','','Late week')`).ok,'late day set');
+ok(run("__book.getSheetByName('Schedule').data[0].join()==='Date,Start,End,Note'"),'Schedule tab created on demand');
+r=run("athleteCheckIn('300105','s1','')"); ok(r.ok&&r.me.status==='Present'&&r.me.practice.start==='18:00','5:30 PM is open on a late day');
+at('2026-11-10T01:06:00Z'); ok(run("athleteCheckIn('300106','s2','')").me.status==='Late','6:06 PM late on a late day');
+at('2026-11-10T01:21:00Z'); ok(run("athleteCheckIn('300107','s3','')").error==='CLOSED','6:21 PM closed on a late day');
+at('2026-11-09T23:30:00Z'); ok(run("athleteCheckIn('300107','s3','')").error==='CLOSED','4:30 PM not open yet on a late day');
+ok(run(`coachSetDay('${P}','2026-11-11','custom','17:30','Impact testing')`).ok,'custom time');
+let sch=run(`coachSchedule('${P}','2026-11-09')`); ok(sch.days.length===7&&sch.days[0].slot==='late'&&sch.days[2].slot==='custom'&&sch.days[2].end==='19:30'&&sch.days[3].source==='rule'&&sch.days[5].slot==='off'&&sch.days[6].slot==='off','week view: '+JSON.stringify(sch.days.map(d=>d.slot+'/'+d.source)));
+ok(run(`coachSetDay('${P}','2026-11-12','off','','')`).ok&&run(`coachSchedule('${P}','2026-11-09')`).days[3].slot==='off','day off');
+at('2026-11-12T23:00:00Z'); ok(/No practice/.test(run("athleteCheckIn('300107','s3','')").message),'off day closed');
+ok(run(`coachSetDay('${P}','2026-11-12','default','','')`).ok&&run(`coachSchedule('${P}','2026-11-09')`).days[3].source==='rule','back to rule');
+ok(run(`coachSetDay('${P}','2026-11-12','custom','25:00','')`).ok===false,'bad time rejected');
+r=run(`coachFillWeeks('${P}','2026-11-16','early',4)`); ok(r.ok&&r.added===20,'fill 4 weeks');
+sch=run(`coachSchedule('${P}','2026-11-23')`); ok(sch.days[0].slot==='late'&&sch.days[0].note==='Late week','alternation');
+ok(run(`coachFillWeeks('${P}','2026-11-16','early',4)`).added===0,'fill does not overwrite');
+ok(run(`coachSetConfig('${P}','LATE_START','18:30')`).ok&&run(`coachSchedule('${P}','2026-11-09')`).days[0].slot==='custom','changing the slot time does not silently move set days');
+run(`coachSetConfig('${P}','LATE_START','18:00')`);
 at('2026-11-05T22:50:00Z');
 // room code
 ok(run(`coachSetConfig('${P}','PRESENCE_CHECK','Code')`).ok,'code on');
@@ -72,7 +93,7 @@ ok(rr('300101').pct===50&&rr('300101').A===1,'50%');
 ok(rr('300106').E===1&&rr('300106').pct===100,'excused not counted against');
 ok(rr('300107').pct===0&&rr('300107').marks==='AA','absent both');
 rep=run(`coachReport('${P}','2026-11-02','2026-11-08')`); ok(rep.days.length===3,'saturday counted in wider range');
-let ath=run(`coachAthlete('${P}','300100')`); ok(ath.ok&&ath.days.length===3&&ath.weights[0].chg==='-5.2','athlete history');
+let ath=run(`coachAthlete('${P}','300100')`); ok(ath.ok&&ath.days.filter(d=>d.date<='2026-11-08').length===3&&ath.weights[0].chg==='-5.2','athlete history');
 let ex=run(`coachExport('${P}','2026-11-02','2026-11-06')`); ok(ex.ok&&ex.rows===18&&ex.days===2,'export');
 ok(run("__book.getSheetByName('Report').data[1].slice(0,9).join('|')")==='Alvarez, Marco|9|2|0|0|0|100%|P|P','report grid row');
 // --- roster admin

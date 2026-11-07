@@ -84,6 +84,17 @@ const {chromium}=require('playwright');const path=require('path');const assert=r
   await p.click('.nav [data-t=more]');await p.waitForSelector('[data-a=presence]');ok((await txt()).includes('set ✓'),'school location shown as set');await shot('17-more');
   await p.click('[data-a=presence][data-v=Off]');await p.waitForFunction(()=>!document.querySelector('.note.code'));await p.click('[data-a=presence][data-v=Location]');await p.waitForSelector('.note.code');await p.waitForTimeout(400);
   await p.click('[data-a=schoolAsk]');await p.waitForSelector('#sheet.open');await p.click('[data-a=schoolSet]');await p.waitForFunction(()=>document.getElementById('toast').innerText.includes('School location set'));ok(true,'coach can set school location');
+  // ---- practice schedule planner
+  await p.click('[data-m=sched]');await p.waitForSelector('[data-a=schedDay]');await shot('23-sched');
+  ok((await p.locator('[data-a=schedDay]').count())===7,'seven days shown');
+  await p.click('[data-a=schedDay][data-d="2026-11-07"]');await p.waitForSelector('#sheet.open');await p.fill('#snote','Ice baths');await p.click('#sheet [data-s=early]');
+  await p.waitForFunction(()=>document.querySelector('[data-a=schedDay][data-d="2026-11-07"]').innerText.includes('Early'));ok(true,'Saturday opened');
+  await p.click('[data-a=schedDay][data-d="2026-11-04"]');await p.waitForSelector('#sheet.open');await p.click('#sheet [data-s=late]');
+  await p.waitForFunction(()=>document.querySelector('[data-a=schedDay][data-d="2026-11-04"]').innerText.includes('Late · 6:00 PM'));ok(true,'late slot set');
+  await p.click('[data-a=schedWeek][data-n="7"]');await p.waitForFunction(()=>document.body.innerText.includes('Week of Mon, Nov 9'));
+  await p.click('[data-a=fill][data-s=late]');await p.waitForFunction(()=>document.getElementById('toast').innerText.includes('20 practice days added'));
+  await p.waitForFunction(()=>document.querySelector('[data-a=schedDay][data-d="2026-11-09"]').innerText.includes('Late week'));await shot('24-sched-filled');
+  await p.click('[data-a=moreBack]');await p.waitForSelector('[data-m=qr]');
   await p.click('[data-m=qr]');await p.waitForSelector('.qrbox svg');await shot('18-qr');
   await p.click('[data-a=moreBack]');await p.waitForTimeout(300);
   await p.click('[data-m=add]');await p.fill('#aid','300555');await p.fill('#afn','Test');await p.fill('#aln','Zed');await p.fill('#agr','9');await p.click('[data-a=addSave]');await p.waitForSelector('[data-m=qr]');

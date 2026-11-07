@@ -291,7 +291,7 @@ function heroHtml(){
   if(m.status==='Excused'||m.status==='Absent')return '<div class="hero info"><div class="t">Coach marked you '+E(m.status)+'</div><div class="n">'+E(m.name)+'</div><div class="d">'+E(when)+' · If that is wrong, see Coach.</div></div>';
   if(A.err&&!(pmode()==='code'&&m.open))return '<div class="hero bad"><div class="ic">!</div><div class="t">NOT CHECKED IN</div><div class="n">'+E(m.name)+'</div><div class="d">'+E(A.err)+'</div></div>'+(m.open?'<button class="btn" data-a="retry" style="margin-bottom:14px">Try again</button>':'')+
     (m.open&&pmode()==='loc'?'<div class="card"><label class="l" for="code">Backup code from Coach</label><div class="wrow" style="margin:0"><div><input id="code" class="field" inputmode="numeric" pattern="[0-9]*" maxlength="2" autocomplete="off"></div><button class="btn sec" data-a="codeGo">Use code</button></div></div>':'');
-  if(!m.open)return '<div class="hero info"><div class="t">Check-in is closed</div><div class="n">'+E(m.name)+'</div><div class="d">'+E(m.closedReason)+'</div></div>';
+  if(!m.open)return '<div class="hero info"><div class="t">'+(m.practice?'Practice today '+E(t12(m.practice.start)):'No practice today')+'</div><div class="n">'+E(m.name)+'</div><div class="d">'+E(m.closedReason)+'</div></div>';
   if(pmode()!=='code')return '<div class="hero info"><div class="t">Hi '+E(m.first)+'</div><div class="d">'+E(nice(m.date))+'</div></div><button class="btn" data-a="retry" style="margin-bottom:14px">Check in</button>';
   return '<div class="card"><div style="font-size:22px;font-weight:800;margin-bottom:8px">Hi '+E(m.first)+'</div><label class="l" for="code">Type the 2-digit room code Coach is showing</label>'+
          '<input id="code" class="field big-id" inputmode="numeric" pattern="[0-9]*" maxlength="2" autocomplete="off">'+(A.err?'<div class="err">'+E(A.err)+'</div>':'')+'</div>'+
@@ -398,6 +398,7 @@ function renderDay(keep){
   if(d.isToday&&d.presence==='code')h+='<div class="note code">Room code today: <b>'+E(d.code)+'</b> — say it out loud or write it on the board.</div>';
   if(d.isToday&&d.presence==='loc')h+='<div class="note code">Backup code today: <b>'+E(d.code)+'</b> — only for an athlete whose phone cannot get its location.</div>';
   if(d.isToday&&(d.presence==='loc'||d.presence==='loconly')&&!d.schoolSet)h+='<div class="err" style="margin:0 0 12px">The school location is not set, so phones cannot be checked. Go to More and set it while you are in the wrestling room.</div>';
+  h+='<button class="note" data-a="more" data-m="sched" style="display:flex;width:100%;align-items:center;gap:10px;text-align:left;cursor:pointer;min-height:52px"><span style="flex:1">'+(d.practice?'<b>Practice '+E(t12(d.practice.start))+'–'+E(t12(d.practice.end))+'</b>'+(d.practice.note?' · '+E(d.practice.note):''):'<b>No practice scheduled</b> for '+E(nice(C.date)))+'</span><span class="pill p-none" style="border-style:solid">'+(d.practice?'Change':'Set / open')+'</span></button>';
   if(d.isToday)h+='<div class="note">'+(d.open?'<b style="color:#157a3c">● Athlete check-in is open.</b> Tap a name to mark someone yourself.':'<b>Athlete check-in is closed.</b> '+E(d.closedReason)+' You can still tap names.')+'</div>';
   h+='<input class="field" id="q" data-i="search" placeholder="Search name" value="'+E(C.q)+'" autocomplete="off" style="margin-bottom:12px;min-height:50px;font-size:18px">';
   h+='<div id="list"></div><div style="text-align:center"><button class="link" data-a="filterAll">'+(C.filter==='all'?'':'Show everyone')+'</button></div></div>'+nav();
@@ -688,13 +689,26 @@ function renderMore(){
        '<label class="l" for="afn" style="margin-top:10px">First name</label><input id="afn" class="field" maxlength="40"><label class="l" for="aln" style="margin-top:10px">Last name</label><input id="aln" class="field" maxlength="40">'+
        '<label class="l" for="agr" style="margin-top:10px">Grade</label><input id="agr" class="field" inputmode="numeric" maxlength="2">'+(C.err?'<div class="err">'+E(C.err)+'</div>':'')+'</div>'+
        '<button class="btn" data-a="addSave">Add to roster</button><button class="btn ghost" data-a="moreBack">‹ Back</button>';
+  } else if(C.more==='sched'){
+    var S=C.sched;
+    h+='<div class="datebar" style="background:#111;border-radius:12px;padding:6px 8px;margin:0 0 12px"><button data-a="schedWeek" data-n="-7" aria-label="Previous week">‹</button><div class="dt" style="color:#fff">'+(S?'Week of '+E(nice(S.monday)):'…')+'</div><button data-a="schedWeek" data-n="7" aria-label="Next week">›</button></div>';
+    if(!S)h+='<div class="hero info"><div class="spin"></div></div>';
+    else{
+      h+='<div class="note">Tap a day to set it. <b>Early</b> = '+E(t12(S.early))+', <b>Late</b> = '+E(t12(S.late))+'. Check-in opens '+E(C.day?C.day.settings.before:'30')+' min before the start. Saturdays and holidays: set the day and check-in opens like any other day.</div>';
+      h+='<div class="rows">'+S.days.map(function(x){
+        var lab=x.slot==='off'?'No practice':(x.slot==='early'?'Early':x.slot==='late'?'Late':'Custom')+' · '+t12(x.start)+'–'+t12(x.end);
+        var cls=x.slot==='off'?'':x.slot==='late'?'s-L':'s-P';
+        return '<button class="row '+cls+'" data-a="schedDay" data-d="'+E(x.date)+'"><span class="nm">'+E(x.dow)+' '+E(nice(x.date).replace(/^\w+, /,''))+(x.date===S.today?' · today':'')+'<small>'+E(x.source==='set'?(x.note||'Set by coach'):x.source==='rule'?'Weekly rule':'')+'</small></span><span class="pill '+(x.slot==='off'?'p-none':x.slot==='late'?'p-L':'p-P')+'">'+E(lab)+'</span></button>';}).join('')+'</div>';
+      h+='<div class="sech">Fill ahead</div><div class="grid2"><button class="btn sec" data-a="fill" data-s="early">This week early, then alternate</button><button class="btn sec" data-a="fill" data-s="late">This week late, then alternate</button></div><p class="hint">Fills Mon–Fri for 4 weeks from this week. Days you already set are left alone.</p>';
+    }
+    h+='<button class="btn ghost" data-a="moreBack" style="margin-top:12px">‹ Back</button>';
   } else if(C.more==='inactive'){
     h+='<div class="sech">Removed from the active roster</div>';
     var ina=(C.roster||[]).filter(function(a){return !a.active;});
     h+=!C.roster?'<div class="hero info"><div class="spin"></div></div>':!ina.length?'<div class="rows"><div class="empty">No one has been removed.</div></div>':'<div class="rows">'+ina.map(function(a){return '<button class="row" data-a="openAth" data-id="'+E(a.id)+'"><span class="nm">'+E(a.name)+'</span><span class="pill p-none">Open</span></button>';}).join('')+'</div>';
     h+='<button class="btn ghost" data-a="moreBack" style="margin-top:12px">‹ Back</button>';
   } else {
-    h+='<button class="btn" data-a="more" data-m="qr">Show the QR code</button>';
+    h+='<button class="btn" data-a="more" data-m="qr">Show the QR code</button><button class="btn sec" data-a="more" data-m="sched">Practice schedule</button>';
     h+='<div class="card" style="margin-top:14px"><h2>Check-in rules</h2>';
     if(!d)h+='<div class="spin"></div>';
     else{
@@ -703,16 +717,22 @@ function renderMore(){
       h+='<b>Where athletes can check in</b><div class="chips" style="margin:8px 0">'+opts.map(function(o){return '<button class="chip'+(pm===o[1]?' on':'')+'" data-a="presence" data-v="'+o[0]+'" aria-pressed="'+(pm===o[1])+'">'+o[2]+'</button>';}).join('')+'</div><p class="hint" style="margin:0 0 10px">'+hint+' The same rule applies to boarding the bus.</p>'+
          (pm==='loc'||pm==='code'?'<div class="note code">Today\'s code: <b>'+E(d.code)+'</b></div>':'')+
          (pm==='loc'||pm==='loconly'?'<div class="'+(d.schoolSet?'note':'err')+'" style="margin:0 0 10px">School location: <b>'+(d.schoolSet?'set ✓':'NOT SET')+'</b></div><button class="btn sec" data-a="schoolAsk">Set school location to where I am standing</button>':'')+
-         '<hr style="border:0;border-top:1px solid #d5dbe5;margin:12px 0"><div class="switch"><span><b>Open check-in today</b><br><span class="hint">For a Saturday or holiday practice. Normal days: '+E(d.settings.days)+'.</span></span><button data-a="cfgToggle" data-k="EXTRA_OPEN_DATE" class="'+(d.extraOpen?'on':'')+'" aria-pressed="'+d.extraOpen+'">'+(d.extraOpen?'ON':'OFF')+'</button></div>'+
-         '<hr style="border:0;border-top:1px solid #d5dbe5;margin:12px 0"><div class="grid2"><div><label class="l" for="s1">Practice starts</label><input id="s1" class="field" type="time" data-c="cfg" data-k="PRACTICE_START" value="'+E(d.settings.start)+'"></div>'+
+         '<hr style="border:0;border-top:1px solid #d5dbe5;margin:12px 0"><div class="grid2"><div><label class="l" for="s1">Early slot starts</label><input id="s1" class="field" type="time" data-c="cfg" data-k="EARLY_START" value="'+E(d.settings.early)+'"></div>'+
+         '<div><label class="l" for="s5">Late slot starts</label><input id="s5" class="field" type="time" data-c="cfg" data-k="LATE_START" value="'+E(d.settings.lateStart)+'"></div>'+
+         '<div><label class="l" for="s3">Opens (min before)</label><input id="s3" class="field" inputmode="numeric" data-c="cfg" data-k="OPEN_BEFORE_MIN" value="'+E(d.settings.before)+'"></div>'+
          '<div><label class="l" for="s2">Late after (min)</label><input id="s2" class="field" inputmode="numeric" data-c="cfg" data-k="LATE_AFTER_MIN" value="'+E(d.settings.late)+'"></div>'+
-         '<div><label class="l" for="s3">Check-in opens</label><input id="s3" class="field" type="time" data-c="cfg" data-k="CHECKIN_OPENS" value="'+E(d.settings.opens)+'"></div>'+
-         '<div><label class="l" for="s4">Check-in closes</label><input id="s4" class="field" type="time" data-c="cfg" data-k="CHECKIN_CLOSES" value="'+E(d.settings.closes)+'"></div></div><p class="hint">Changes save by themselves.</p>';
+         '<div><label class="l" for="s4">Closes (min after)</label><input id="s4" class="field" inputmode="numeric" data-c="cfg" data-k="CLOSE_AFTER_MIN" value="'+E(d.settings.after)+'"></div>'+
+         '<div><label class="l" for="s6">Practice length (min)</label><input id="s6" class="field" inputmode="numeric" data-c="cfg" data-k="PRACTICE_LENGTH_MIN" value="'+E(d.settings.length)+'"></div></div><p class="hint">Changes save by themselves. Which days are early or late is set under Practice schedule.</p>';
     }
     h+='</div><button class="btn sec" data-a="more" data-m="add">Add an athlete</button><button class="btn ghost" data-a="more" data-m="inactive">Removed athletes</button>'+
        '<button class="btn ghost" data-a="athMode">Athlete check-in screen</button><button class="btn ghost" data-a="signOut">Sign out of coach screens</button>';
   }
   $app.innerHTML=h+'</div>'+nav();
+}
+
+function loadSched(){
+  var m=C.schedMonday;
+  api('coachSchedule',C.pin,m).then(function(r){ if(!guard(r))return; if(C.more!=='sched'||C.schedMonday!==m)return; if(!r.ok){C.err=r.message;}else C.sched=r; renderMore(); });
 }
 
 /* ---------- poster ---------- */
@@ -823,11 +843,27 @@ var act={
   deactAsk:function(){openSheet('<h3>Remove '+E(C.ath.data.name)+'?</h3><p>They leave the daily list and reports. Their history is kept and you can put them back any time.</p><button class="btn danger" data-a="deact">Remove from active roster</button><button class="btn ghost" data-a="close">Cancel</button>');},
   deact:function(){closeSheet();setActive(false);},
   react:function(){setActive(true);},
-  more:function(ds){C.more=ds.m;C.err='';renderMore();window.scrollTo(0,0);if(ds.m==='inactive'){C.roster=null;renderMore();api('coachRoster',C.pin).then(function(r){if(!guard(r))return;C.roster=r.ok?r.athletes:[];if(C.more==='inactive')renderMore();});}},
+  more:function(ds){C.tab='more';C.more=ds.m;C.err='';renderMore();window.scrollTo(0,0);if(ds.m==='sched'){C.sched=null;C.schedMonday=C.schedMonday||weekStart(BOOT.today);loadSched();}if(ds.m==='inactive'){C.roster=null;renderMore();api('coachRoster',C.pin).then(function(r){if(!guard(r))return;C.roster=r.ok?r.athletes:[];if(C.more==='inactive')renderMore();});}},
   moreBack:function(){C.more='';C.err='';renderMore();},
+  schedWeek:function(ds){C.schedMonday=addDays(C.schedMonday,Number(ds.n));C.sched=null;renderMore();loadSched();},
+  schedDay:function(ds){
+    var x=C.sched.days.filter(function(y){return y.date===ds.d;})[0];
+    openSheet('<h3>'+E(x.dow)+', '+E(nice(x.date).replace(/^\w+, /,''))+'</h3><p>'+(x.slot==='off'?'No practice':'Practice '+E(t12(x.start))+'–'+E(t12(x.end)))+'</p>'+
+      '<div class="grid2"><button class="btn ok" data-a="setDay" data-d="'+E(x.date)+'" data-s="early">Early · '+E(t12(C.sched.early))+'</button><button class="btn" style="background:#b56f00" data-a="setDay" data-d="'+E(x.date)+'" data-s="late">Late · '+E(t12(C.sched.late))+'</button></div>'+
+      '<label class="l" for="cst" style="margin-top:14px">Other start time</label><div class="wrow" style="margin:0"><div><input id="cst" class="field" type="time" value="'+E(x.slot==='custom'?x.start:'')+'"></div><button class="btn sec" data-a="setDay" data-d="'+E(x.date)+'" data-s="custom">Set</button></div>'+
+      '<label class="l" for="snote" style="margin-top:14px">Note (optional)</label><input id="snote" class="field" maxlength="80" placeholder="Thanksgiving week, tournament…" value="'+E(x.source==='set'?x.note:'')+'" style="font-size:17px;min-height:50px">'+
+      '<div style="margin-top:14px"><button class="btn danger" data-a="setDay" data-d="'+E(x.date)+'" data-s="off">No practice this day</button>'+(x.source==='set'?'<button class="btn ghost" data-a="setDay" data-d="'+E(x.date)+'" data-s="default">Back to the weekly rule</button>':'')+'<button class="btn ghost" data-a="close">Cancel</button></div>');
+  },
+  setDay:function(ds){
+    var st=(document.getElementById('cst')||{}).value||'', note=(document.getElementById('snote')||{}).value||'';
+    closeSheet();
+    api('coachSetDay',C.pin,ds.d,ds.s,st,note).then(function(r){ if(!guard(r))return; if(!r.ok)return toast('NOT SAVED: '+r.message,null,true); toast('Saved.'); loadSched(); C.day=null; loadDay(false,true); });
+  },
+  fill:function(ds){
+    api('coachFillWeeks',C.pin,C.schedMonday,ds.s,4).then(function(r){ if(!guard(r))return; if(!r.ok)return toast('NOT SAVED: '+r.message,null,true); toast(r.added+' practice days added.'); loadSched(); C.day=null; loadDay(false,true); });
+  },
   cfgToggle:function(ds){
-    var d=C.day,k=ds.k,v;
-    d.extraOpen=!d.extraOpen;v=d.extraOpen?BOOT.today:'';
+    var d=C.day,k=ds.k,v='';
     renderMore();
     api('coachSetConfig',C.pin,k,v).then(function(r){ if(!guard(r))return; if(!r.ok)toast('NOT SAVED: '+r.message,null,true); loadDay(false,true); });
   },

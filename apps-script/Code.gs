@@ -14,6 +14,7 @@ var TABS = {
   Athletes:   ['StudentID', 'FirstName', 'LastName', 'Grade', 'Eligible', 'Injured', 'Active'],
   Attendance: ['Date', 'StudentID', 'Name', 'Status', 'Time', 'Method', 'Note', 'DeviceID', 'UpdatedAt'],
   Weights:    ['Date', 'StudentID', 'Name', 'PreWeight', 'PreTime', 'PostWeight', 'PostTime', 'ChangeLb', 'ChangePct', 'EnteredBy'],
+  Schedule:   ['Date', 'Start', 'End', 'Note'],
   Trips:      ['TripID', 'Date', 'Name', 'Leg', 'Roster', 'Created', 'DepLat', 'DepLng', 'RetLat', 'RetLng'],
   TripLog:    ['TripID', 'StudentID', 'Name', 'Leg', 'Status', 'Time', 'Method', 'Note'],
   Config:     ['Key', 'Value', 'What it does']
@@ -23,12 +24,14 @@ var DEFAULTS = [
   ['TEAM_NAME', 'West Point Dragons Wrestling', 'Shown at the top of the app and on the QR poster.'],
   ['COACH_PIN', '', 'PIN for the coach screens. Change it any time. Share only with coaches.'],
   ['TIMEZONE', 'America/Phoenix', 'School time zone.'],
-  ['PRACTICE_START', '16:00', 'Practice start, 24-hour time (16:00 = 4:00 PM).'],
+  ['EARLY_START', '16:00', 'Start time of the early practice slot, 24-hour time (16:00 = 4:00 PM).'],
+  ['LATE_START', '18:00', 'Start time of the late practice slot (18:00 = 6:00 PM).'],
+  ['PRACTICE_LENGTH_MIN', '120', 'How long practice runs, in minutes.'],
+  ['OPEN_BEFORE_MIN', '30', 'Check-in opens this many minutes before practice starts.'],
   ['LATE_AFTER_MIN', '5', 'Minutes after start before a self check-in counts as Late.'],
-  ['CHECKIN_OPENS', '15:30', 'Earliest time athletes can check themselves in.'],
-  ['CHECKIN_CLOSES', '16:20', 'Latest time athletes can check themselves in.'],
-  ['PRACTICE_DAYS', 'Mon,Tue,Wed,Thu,Fri', 'Days athletes can check themselves in. Coaches can mark any day.'],
-  ['EXTRA_OPEN_DATE', '', 'Set from the app (More > Open check-in today) for a Saturday or holiday practice.'],
+  ['CLOSE_AFTER_MIN', '20', 'Check-in closes this many minutes after practice starts.'],
+  ['PRACTICE_DAYS', 'Mon,Tue,Wed,Thu,Fri', 'Days that have practice when the Schedule tab has no row for the date. Set the slot per week from the app: More > Practice schedule.'],
+  ['DEFAULT_SLOT', 'early', 'Slot used for a practice day that has no Schedule row: early or late.'],
   ['PRESENCE_CHECK', 'Location', 'How athletes prove they are there. Location = phone must be at school, daily code as backup. LocationOnly = no backup code. Code = type the daily code. Off = anywhere.'],
   ['SCHOOL_LAT', '', 'Latitude of the wrestling room. Set from the app: More > Set school location.'],
   ['SCHOOL_LNG', '', 'Longitude of the wrestling room.'],
@@ -39,7 +42,7 @@ var DEFAULTS = [
   ['SITE_URL', 'https://jerry-d-ball.github.io/wrestling-checkin/', 'Address of the app website. This is what the QR code points to.']
 ];
 
-var EDITABLE_KEYS = ['PRESENCE_CHECK', 'EXTRA_OPEN_DATE', 'PRACTICE_START', 'LATE_AFTER_MIN', 'CHECKIN_OPENS', 'CHECKIN_CLOSES'];
+var EDITABLE_KEYS = ['PRESENCE_CHECK', 'EARLY_START', 'LATE_START', 'OPEN_BEFORE_MIN', 'LATE_AFTER_MIN', 'CLOSE_AFTER_MIN', 'PRACTICE_LENGTH_MIN'];
 
 var __now = null;      // tests only
 var __memo = {};
@@ -236,7 +239,7 @@ function stateFor_(a, deviceId) {
   return {
     id: a.id, first: a.first, name: a.first + ' ' + a.last, date: day,
     status: att ? att.Status : '', time: att ? att.Time : '',
-    open: w.open, closedReason: w.open ? '' : w.reason, presence: presenceMode_(),
+    open: w.open, closedReason: w.open ? '' : w.reason, presence: presenceMode_(), practice: w.practice ? { start: w.practice.start, end: w.practice.end, note: w.practice.note } : null,
     pre: wt ? wt.PreWeight : '', post: wt ? wt.PostWeight : '', change: wt ? wt.ChangeLb : '',
     trip: trip
   };
@@ -265,9 +268,9 @@ function coachDay(pin, date) {
     var w = window_();
     return { ok: true, date: day, today: today_(), isToday: day === today_(), athletes: list,
              presence: presenceMode_(), schoolSet: !!schoolAnchor_(), code: roomCode_(day),
-             open: w.open, closedReason: w.reason || '', extraOpen: cfg_('EXTRA_OPEN_DATE') === today_(),
+             open: w.open, closedReason: w.reason || '', practice: w.practice || null, todayOverride: !!find_('Schedule', function (r) { return r.Date === today_(); }),
              flagPct: Number(cfg_('WEIGHT_LOSS_FLAG_PCT')) || 3,
-             settings: { start: cfg_('PRACTICE_START'), late: cfg_('LATE_AFTER_MIN'), opens: cfg_('CHECKIN_OPENS'), closes: cfg_('CHECKIN_CLOSES'), days: cfg_('PRACTICE_DAYS') } };
+             settings: { early: cfg_('EARLY_START'), lateStart: cfg_('LATE_START'), before: cfg_('OPEN_BEFORE_MIN'), late: cfg_('LATE_AFTER_MIN'), after: cfg_('CLOSE_AFTER_MIN'), length: cfg_('PRACTICE_LENGTH_MIN'), days: cfg_('PRACTICE_DAYS') } };
   });
 }
 
@@ -302,8 +305,8 @@ function coachSetConfig(pin, key, value) {
   return coach_(pin, function () {
     if (EDITABLE_KEYS.indexOf(key) < 0) return { ok: false, message: 'That setting is changed in the Config tab of the Sheet.' };
     value = String(value == null ? '' : value).trim();
-    if (/^(PRACTICE_START|CHECKIN_OPENS|CHECKIN_CLOSES)$/.test(key) && !/^([01]?\d|2[0-3]):[0-5]\d$/.test(value)) return { ok: false, message: 'Use a time like 16:00.' };
-    if (key === 'LATE_AFTER_MIN' && !/^\d{1,3}$/.test(value)) return { ok: false, message: 'Use a number of minutes.' };
+    if (/^(EARLY_START|LATE_START)$/.test(key) && !/^([01]?\d|2[0-3]):[0-5]\d$/.test(value)) return { ok: false, message: 'Use a time like 16:00.' };
+    if (/_MIN$/.test(key) && !/^\d{1,3}$/.test(value)) return { ok: false, message: 'Use a number of minutes.' };
     if (key === 'PRESENCE_CHECK' && ['Location', 'LocationOnly', 'Code', 'Off'].indexOf(value) < 0) return { ok: false, message: 'Unknown setting.' };
     return locked_(function () { setCfg_(key, value); return { ok: true }; });
   });
@@ -322,6 +325,63 @@ function setCfg_(key, value) {
   var row = find_('Config', function (r) { return r.Key === key; });
   if (row) update_('Config', row._row, { Value: value }); else append_('Config', { Key: key, Value: value });
   __memo = {};
+}
+
+/* ---------- practice schedule ---------- */
+
+/** The week (Mon-Sun) starting at `monday`: each day's practice, where it came from, and the slot presets. */
+function coachSchedule(pin, monday) {
+  return coach_(pin, function () {
+    var m = normDate_(monday) || weekStart_(today_());
+    var days = [];
+    for (var i = 0; i < 7; i++) {
+      var d = addDays_(m, i), pr = practiceFor_(d);
+      days.push({ date: d, dow: dowName_(d), start: pr ? pr.start : '', end: pr ? pr.end : '', note: pr ? pr.note : '', source: pr ? pr.source : 'off', slot: pr ? slotOf_(pr.start) : 'off' });
+    }
+    return { ok: true, monday: m, today: today_(), days: days, early: cfg_('EARLY_START'), late: cfg_('LATE_START'), length: Number(cfg_('PRACTICE_LENGTH_MIN')) || 120 };
+  });
+}
+
+/**
+ * Sets one day. slot: 'early' | 'late' | 'off' | 'custom' (with start) | 'default' (remove the row, back to the weekly rule).
+ */
+function coachSetDay(pin, date, slot, start, note) {
+  return coach_(pin, function () {
+    var d = normDate_(date);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return { ok: false, message: 'Pick a date.' };
+    var st = slot === 'early' ? cfg_('EARLY_START') : slot === 'late' ? cfg_('LATE_START') : slot === 'custom' ? String(start || '').trim() : '';
+    if (slot === 'custom' && !/^([01]?\d|2[0-3]):[0-5]\d$/.test(st)) return { ok: false, message: 'Use a time like 17:30.' };
+    if (['early', 'late', 'off', 'custom', 'default'].indexOf(slot) < 0) return { ok: false, message: 'Bad request.' };
+    return locked_(function () {
+      var ex = find_('Schedule', function (r) { return r.Date === d; });
+      if (slot === 'default') { if (ex) deleteRow_('Schedule', ex._row); return { ok: true }; }
+      var rec = { Date: d, Start: slot === 'off' ? 'OFF' : normTime_(st), End: slot === 'off' ? '' : addMin_(normTime_(st), Number(cfg_('PRACTICE_LENGTH_MIN')) || 120), Note: String(note || '').slice(0, 80) };
+      if (ex) update_('Schedule', ex._row, rec); else append_('Schedule', rec);
+      return { ok: true };
+    });
+  });
+}
+
+/** Fills Mon-Fri of `weeks` weeks from `monday`, alternating slots starting with `firstSlot`. Days already set by hand are kept. */
+function coachFillWeeks(pin, monday, firstSlot, weeks) {
+  return coach_(pin, function () {
+    var m = normDate_(monday); weeks = Math.min(12, Math.max(1, Number(weeks) || 4));
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(m) || ['early', 'late'].indexOf(firstSlot) < 0) return { ok: false, message: 'Bad request.' };
+    return locked_(function () {
+      var n = 0;
+      for (var w = 0; w < weeks; w++) {
+        var slot = (w % 2 === 0) === (firstSlot === 'early') ? 'early' : 'late';
+        for (var i = 0; i < 5; i++) {
+          var d = addDays_(m, w * 7 + i);
+          if (find_('Schedule', function (r) { return r.Date === d; })) continue;
+          var st = cfg_(slot === 'early' ? 'EARLY_START' : 'LATE_START');
+          append_('Schedule', { Date: d, Start: st, End: addMin_(st, Number(cfg_('PRACTICE_LENGTH_MIN')) || 120), Note: slot === 'early' ? 'Early week' : 'Late week' });
+          n++;
+        }
+      }
+      return { ok: true, added: n };
+    });
+  });
 }
 
 function coachAddAthlete(pin, a) {
@@ -603,19 +663,38 @@ function lastWeights_(day) {
 }
 
 /** Is self check-in open right now, and would a check-in be late? */
-function window_() {
-  var day = today_(), mins = nowMins_();
-  var names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  var dow = names[Number(Utilities.formatDate(now_(), tz_(), 'u')) % 7];
-  var days = cfg_('PRACTICE_DAYS').split(',').map(function (s) { return s.trim().slice(0, 3).toLowerCase(); });
-  var extra = cfg_('EXTRA_OPEN_DATE') === day;
-  var late = mins > hm_(cfg_('PRACTICE_START'), 960) + (Number(cfg_('LATE_AFTER_MIN')) || 0);
-  if (extra) return { open: true, late: late };
-  if (days.indexOf(dow.toLowerCase()) < 0) return { open: false, reason: 'No practice check-in today. If there is practice, see Coach.' };
-  if (mins < hm_(cfg_('CHECKIN_OPENS'), 900)) return { open: false, reason: 'Check-in opens at ' + pretty_(cfg_('CHECKIN_OPENS')) + '.' };
-  if (mins > hm_(cfg_('CHECKIN_CLOSES'), 1110)) return { open: false, reason: 'Check-in closed at ' + pretty_(cfg_('CHECKIN_CLOSES')) + '. See Coach to be marked.' };
-  return { open: true, late: late };
+/** Today's practice: a Schedule row for the date wins; otherwise the weekly rule and default slot. null = no practice. */
+function practiceFor_(day) {
+  var row = find_('Schedule', function (r) { return r.Date === day; });
+  if (row) {
+    if (/^off$/i.test(row.Start) || !row.Start) return null;
+    var st = normTime_(row.Start);
+    return { start: st, end: row.End ? normTime_(row.End) : addMin_(st, Number(cfg_('PRACTICE_LENGTH_MIN')) || 120), note: row.Note || '', source: 'set' };
+  }
+  var days = cfg_('PRACTICE_DAYS').split(',').map(function (x) { return x.trim().slice(0, 3).toLowerCase(); });
+  if (days.indexOf(dowName_(day).toLowerCase()) < 0) return null;
+  var st2 = cfg_(/late/i.test(cfg_('DEFAULT_SLOT')) ? 'LATE_START' : 'EARLY_START');
+  return { start: st2, end: addMin_(st2, Number(cfg_('PRACTICE_LENGTH_MIN')) || 120), note: '', source: 'rule' };
 }
+
+/** Is self check-in open right now, and would a check-in be late? */
+function window_() {
+  var day = today_(), mins = nowMins_(), pr = practiceFor_(day);
+  if (!pr) return { open: false, practice: null, reason: 'No practice check-in today. If there is practice, see Coach.' };
+  var start = hm_(pr.start, 960);
+  var opens = start - (Number(cfg_('OPEN_BEFORE_MIN')) || 0), closes = start + (Number(cfg_('CLOSE_AFTER_MIN')) || 0);
+  var late = mins > start + (Number(cfg_('LATE_AFTER_MIN')) || 0);
+  if (mins < opens) return { open: false, practice: pr, reason: 'Practice is at ' + pretty_(pr.start) + ' today. Check-in opens at ' + pretty_(mm_(opens)) + '.' };
+  if (mins > closes) return { open: false, practice: pr, reason: 'Check-in closed at ' + pretty_(mm_(closes)) + '. See Coach to be marked.' };
+  return { open: true, late: late, practice: pr };
+}
+
+function slotOf_(start) { return start === cfg_('EARLY_START') ? 'early' : start === cfg_('LATE_START') ? 'late' : 'custom'; }
+function mm_(m) { m = ((m % 1440) + 1440) % 1440; return pad_(Math.floor(m / 60)) + ':' + pad_(m % 60); }
+function addMin_(hhmm, n) { return mm_(hm_(hhmm, 0) + n); }
+function dowName_(ymd) { var p = ymd.split('-'); var d = new Date(Date.UTC(Number(p[0]), Number(p[1]) - 1, Number(p[2]))); return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getUTCDay()]; }
+function addDays_(ymd, n) { var p = ymd.split('-'); var d = new Date(Date.UTC(Number(p[0]), Number(p[1]) - 1, Number(p[2]) + n)); return d.getUTCFullYear() + '-' + pad_(d.getUTCMonth() + 1) + '-' + pad_(d.getUTCDate()); }
+function weekStart_(ymd) { var k = (['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(dowName_(ymd)) + 6) % 7; return addDays_(ymd, -k); }
 
 /* ---------- proof of presence: location first, daily code as backup ---------- */
 
@@ -743,6 +822,12 @@ function ss_() { return SpreadsheetApp.getActiveSpreadsheet(); }
 
 function sheet_(name) {
   var sh = ss_().getSheetByName(name);
+  if (!sh && TABS[name]) {
+    sh = ss_().insertSheet(name);
+    sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).setNumberFormat('@');
+    sh.appendRow(TABS[name]);
+    sh.setFrozenRows(1);
+  }
   if (!sh) throw new Error('Tab "' + name + '" is missing. Run setup.');
   return sh;
 }
@@ -831,7 +916,7 @@ function appUrl_() { return cfg_('SITE_URL'); }
 var API_ = {
   athleteState: athleteState, athleteCheckIn: athleteCheckIn, athleteWeight: athleteWeight, athleteBoard: athleteBoard,
   coachLogin: coachLogin, coachDay: coachDay, coachMark: coachMark, coachWeight: coachWeight, coachSetConfig: coachSetConfig,
-  coachSetSchool: coachSetSchool, coachTripAnchor: coachTripAnchor,
+  coachSetSchool: coachSetSchool, coachTripAnchor: coachTripAnchor, coachSchedule: coachSchedule, coachSetDay: coachSetDay, coachFillWeeks: coachFillWeeks,
   coachAddAthlete: coachAddAthlete, coachSetActive: coachSetActive, coachRoster: coachRoster,
   coachReport: coachReport, coachAthlete: coachAthlete, coachExport: coachExport,
   coachTrips: coachTrips, coachTripSave: coachTripSave, coachTrip: coachTrip, coachTripMark: coachTripMark,
