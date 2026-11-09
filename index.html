@@ -299,6 +299,7 @@ function heroHtml(){
 }
 function weightHtml(){
   var m=A.me; if(!m||A.busy)return '';
+  if(m.status!=='Present'&&m.status!=='Late')return '<div class="card"><h2>Weigh-in (pounds)</h2><p class="hint" style="margin:0">Weights open after you check in.</p></div>';
   function one(kind,label,val){
     return '<div class="wrow"><div><label class="l" for="w'+kind+'">'+label+'</label><input id="w'+kind+'" class="field" inputmode="decimal" placeholder="lb" value="'+E(val)+'"></div>'+
            '<button class="btn '+(val?'sec':'')+'" data-a="wtSave" data-kind="'+kind+'">'+(val?'Update':'Save')+'</button></div>';

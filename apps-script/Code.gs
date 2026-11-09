@@ -29,7 +29,7 @@ var DEFAULTS = [
   ['PRACTICE_LENGTH_MIN', '120', 'How long practice runs, in minutes.'],
   ['OPEN_BEFORE_MIN', '30', 'Check-in opens this many minutes before practice starts.'],
   ['LATE_AFTER_MIN', '5', 'Minutes after start before a self check-in counts as Late.'],
-  ['CLOSE_AFTER_MIN', '20', 'Check-in closes this many minutes after practice starts.'],
+  ['CLOSE_AFTER_MIN', '120', 'Check-in closes this many minutes after practice starts. Anyone arriving after LATE_AFTER_MIN is marked Late, so this can run to the end of practice.'],
   ['PRACTICE_DAYS', 'Mon,Tue,Wed,Thu,Fri', 'Days that have practice when the Schedule tab has no row for the date. Set the slot per week from the app: More > Practice schedule.'],
   ['DEFAULT_SLOT', 'early', 'Slot used for a practice day that has no Schedule row: early or late.'],
   ['PRESENCE_CHECK', 'Location', 'How athletes prove they are there. Location = phone must be at school, daily code as backup. LocationOnly = no backup code. Code = type the daily code. Off = anywhere.'],
@@ -199,6 +199,8 @@ function athleteWeight(studentId, kind, value) {
   return safe_(function () {
     var a = athlete_(studentId);
     if (!a) return { ok: false, error: 'NOT_FOUND', message: 'That ID is not on the roster. See Coach.' };
+    var att = find_('Attendance', function (r) { return r.Date === today_() && r.StudentID === a.id; });
+    if (!att || (att.Status !== 'Present' && att.Status !== 'Late')) return { ok: false, error: 'NOT_IN', message: 'Check in first. Your weight is saved only when you are checked in for today.', me: stateFor_(a, '') };
     var r = saveWeight_(today_(), a, kind, value, 'Athlete');
     if (!r.ok) return r;
     return { ok: true, me: stateFor_(a, '') };

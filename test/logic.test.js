@@ -24,10 +24,10 @@ ok(run("__book.getSheetByName('Attendance').data.length")===2,'no duplicate atte
 r=run("athleteCheckIn('300101','d1','')"); ok(!r.ok&&r.error==='DEVICE','one phone cannot check in two athletes');
 at('2026-11-05T23:06:00Z'); r=run("athleteCheckIn('300101','d2','')"); ok(r.ok&&r.me.status==='Late','4:06 is late');
 at('2026-11-05T23:05:00Z'); r=run("athleteCheckIn('300102','d3','')"); ok(r.ok&&r.me.status==='Present','4:05 is on time');
-at('2026-11-05T23:21:00Z'); r=run("athleteCheckIn('300103','d4','')"); ok(!r.ok&&r.error==='CLOSED'&&/closed at 4:20 PM/.test(r.message),'closed after 4:20');
+at('2026-11-06T01:01:00Z'); r=run("athleteCheckIn('300103','d4','')"); ok(!r.ok&&r.error==='CLOSED'&&/closed at 6:00 PM/.test(r.message),'closed after practice ends');
+at('2026-11-05T23:21:00Z'); ok(run("athleteCheckIn('300112','d9','')").me.status==='Late','4:21 is open and Late');
 ok(r.me.practice.start==='16:00'&&r.me.practice.end==='18:00','athlete told practice time');
 at('2026-11-05T22:29:00Z'); r=run("athleteCheckIn('300103','d4','')"); ok(!r.ok&&/Practice is at 4:00 PM today. Check-in opens at 3:30 PM/.test(r.message),'not open before 3:30');
-at('2026-11-05T23:20:00Z'); ok(run("window_()").open,'4:20 still open');
 at('2026-11-07T23:00:00Z'); r=run("athleteCheckIn('300103','d4','')"); ok(!r.ok&&r.error==='CLOSED','Saturday closed');
 ok(run(`coachSetDay('${P}','2026-11-07','early','','Ice bath Saturday')`).ok,'open Saturday');
 r=run("athleteCheckIn('300103','d4','')"); ok(r.ok&&r.me.status==='Present','Saturday open when coach opens it');
@@ -38,7 +38,7 @@ ok(run(`coachSetDay('${P}','2026-11-09','late','','Late week')`).ok,'late day se
 ok(run("__book.getSheetByName('Schedule').data[0].join()==='Date,Start,End,Note'"),'Schedule tab created on demand');
 r=run("athleteCheckIn('300105','s1','')"); ok(r.ok&&r.me.status==='Present'&&r.me.practice.start==='18:00','5:30 PM is open on a late day');
 at('2026-11-10T01:06:00Z'); ok(run("athleteCheckIn('300106','s2','')").me.status==='Late','6:06 PM late on a late day');
-at('2026-11-10T01:21:00Z'); ok(run("athleteCheckIn('300107','s3','')").error==='CLOSED','6:21 PM closed on a late day');
+at('2026-11-10T03:01:00Z'); ok(run("athleteCheckIn('300107','s3','')").error==='CLOSED','8:01 PM closed on a late day');
 at('2026-11-09T23:30:00Z'); ok(run("athleteCheckIn('300107','s3','')").error==='CLOSED','4:30 PM not open yet on a late day');
 ok(run(`coachSetDay('${P}','2026-11-11','custom','17:30','Impact testing')`).ok,'custom time');
 let sch=run(`coachSchedule('${P}','2026-11-09')`); ok(sch.days.length===7&&sch.days[0].slot==='late'&&sch.days[2].slot==='custom'&&sch.days[2].end==='19:30'&&sch.days[3].source==='rule'&&sch.days[5].slot==='off'&&sch.days[6].slot==='off','week view: '+JSON.stringify(sch.days.map(d=>d.slot+'/'+d.source)));
@@ -73,6 +73,7 @@ ok(day.athletes[0].name==='Alvarez, Marco','sorted by last name');
 // coach override of a self check-in keeps the time
 run(`coachMark('${P}','${D}','300101','Present',null)`); day=run(`coachDay('${P}','${D}')`); ok(by('300101').status==='Present'&&by('300101').time==='16:06','override keeps time');
 // --- weights
+ok(run("athleteWeight('300107','pre','150')").error==='NOT_IN','athlete must be checked in before weighing');
 ok(run("athleteWeight('300100','pre','152.4')").ok,'pre');
 r=run("athleteWeight('300100','post','147.2')"); ok(r.me.change==='-5.2','change');
 ok(run("athleteWeight('300100','pre','15')").error==='RANGE','range check');
