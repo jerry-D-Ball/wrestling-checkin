@@ -1,5 +1,5 @@
 /**
- * WEST POINT WRESTLING - ATTENDANCE, OPTIONAL SESSIONS, WEIGHTS, TRAVEL ROSTERS & BUS CHECK  (data script)
+ * WEST POINT WRESTLING - ATTENDANCE, OPTIONAL SESSIONS, WEIGHTS, TRAVEL ROSTERS, BUS CHECK & FRESHMAN NIGHT SIGN-UP  (data script)
  *
  * This script lives in the attendance Google Sheet. It only saves and reads rows.
  * The screens athletes and coaches see are the website in this repository.
@@ -51,6 +51,8 @@ var DEFAULTS = [
   ['TRAVEL_EMAIL_SIGNOFF', 'West Point Wrestling Coaching Staff', 'Last line of the travel roster email.'],
   ['WEIGHT_LOSS_FLAG_PCT', '3', 'Flag an athlete whose weight drops more than this percent in one practice.'],
   ['OLD_SHEET_ID', '', 'ID of the old attendance Sheet. The roster is copied from its Athletes tab.'],
+  ['SIGNUP_OPEN', 'Y', 'Future Freshman Night sign-up page: Y = taking sign-ups, N = closed.'],
+  ['SIGNUP_SHEET_ID', '', 'ID of the Sheet that collects the Future Freshman Night sign-ups. Blank = a FreshmanNight tab in this Sheet.'],
   ['SITE_URL', 'https://jerry-d-ball.github.io/wrestling-checkin/', 'Address of the app website. This is what the QR code points to.']
 ];
 
@@ -170,7 +172,7 @@ function importRoster_() {
 
 function showLinks() {
   var u = appUrl_();
-  var msg = 'Athlete check-in (this is the QR code link):\n' + u + '\n\nCoach screens:\n' + u + '?p=coach\n\nQR poster to print:\n' + u + '?p=poster\n\nCoach PIN: ' + cfg_('COACH_PIN');
+  var msg = 'Athlete check-in (this is the QR code link):\n' + u + '\n\nCoach screens:\n' + u + '?p=coach\n\nQR poster to print:\n' + u + '?p=poster\n\nFuture Freshman Night sign-up:\n' + u + 'signup.html\n\nCoach PIN: ' + cfg_('COACH_PIN');
   try { SpreadsheetApp.getUi().alert(msg); } catch (err) {}
   Logger.log(msg);
   return msg;
@@ -899,6 +901,74 @@ function tripForAthlete_(id) {
 }
 
 /* ====================================================================== */
+/*  FUTURE FRESHMAN NIGHT SIGN-UP (public page: no PIN, can only add a row) */
+/* ====================================================================== */
+
+var SIGNUP_HEAD = ['Signed Up', 'Student Name', 'Student Email', 'Parent Name', 'Parent Email'];
+
+/**
+ * d = {student, studentEmail, parent, parentEmail} from the sign-up page.
+ * Saves one row in the sign-up Sheet. It never sends anyone's information back.
+ */
+function signupFreshman(d) {
+  return safe_(function () {
+    d = d || {};
+    if (d.website) return { ok: true };   // hidden box that only a spam robot fills in: say thanks, save nothing
+    if (isNo_(cfg_('SIGNUP_OPEN'))) return { ok: false, error: 'CLOSED', message: 'Sign-up is closed. Please see a West Point wrestling coach.' };
+    var student = signupText_(d.student, 60), parent = signupText_(d.parent, 60);
+    var sEmail = signupText_(d.studentEmail, 100).toLowerCase(), pEmail = signupText_(d.parentEmail, 100).toLowerCase();
+    var bad = function (field, message) { return { ok: false, error: 'FIELD', field: field, message: message }; };
+    if (student.length < 2) return bad('student', 'Enter the student\'s first and last name.');
+    if (sEmail && !isEmail_(sEmail)) return bad('studentEmail', 'Check the student email. It should look like name@example.com. You can also leave it blank.');
+    if (parent.length < 2) return bad('parent', 'Enter a parent or guardian name.');
+    if (!pEmail) return bad('parentEmail', 'Enter a parent or guardian email so a coach can reach you.');
+    if (!isEmail_(pEmail)) return bad('parentEmail', 'Check the parent email. It should look like name@example.com.');
+    return locked_(function () {
+      var sh = signupSheet_();
+      var vals = sh.getDataRange().getDisplayValues();
+      var head = vals[0].map(function (h) { return String(h).trim(); });
+      SIGNUP_HEAD.forEach(function (h) {            // a renamed or deleted column is put back at the end, never guessed at
+        if (head.indexOf(h) < 0) { head.push(h); sh.getRange(1, head.length, 1, 1).setValues([[h]]); }
+      });
+      if (vals.length > 3000) return { ok: false, error: 'FULL', message: 'The sign-up list is full. Please see a West Point wrestling coach.' };
+      var cS = head.indexOf('Student Name'), cSE = head.indexOf('Student Email'), cP = head.indexOf('Parent Name'), cPE = head.indexOf('Parent Email');
+      var cell = function (row, c) { return String(row[c] == null ? '' : row[c]).trim(); };
+      for (var i = 1; i < vals.length; i++) {       // same student and parent email again: correct the row, do not add a second one
+        if (cell(vals[i], cS).toLowerCase() !== student.toLowerCase() || cell(vals[i], cPE).toLowerCase() !== pEmail) continue;
+        sh.getRange(i + 1, cS + 1, 1, 1).setValues([[student]]);
+        sh.getRange(i + 1, cP + 1, 1, 1).setValues([[parent]]);
+        if (sEmail) sh.getRange(i + 1, cSE + 1, 1, 1).setValues([[sEmail]]);
+        return { ok: true, already: true };
+      }
+      var rec = { 'Signed Up': stamp_(), 'Student Name': student, 'Student Email': sEmail, 'Parent Name': parent, 'Parent Email': pEmail };
+      sh.appendRow(head.map(function (h) { return rec[h] == null ? '' : rec[h]; }));
+      return { ok: true };
+    });
+  });
+}
+
+/** The Sheet named in Config (SIGNUP_SHEET_ID). If it cannot be opened, a FreshmanNight tab in this Sheet, so a sign-up is never lost. */
+function signupSheet_() {
+  var sh = null, id = cfg_('SIGNUP_SHEET_ID');
+  if (id) {
+    try { var book = SpreadsheetApp.openById(id); sh = book.getSheetByName('Sign-Ups') || book.getSheets()[0]; } catch (err) { sh = null; }
+  }
+  if (!sh) sh = ss_().getSheetByName('FreshmanNight') || ss_().insertSheet('FreshmanNight');
+  if (sh.getLastRow() === 0) {
+    sh.appendRow(SIGNUP_HEAD);
+    sh.getRange(1, 1, 1, SIGNUP_HEAD.length).setFontWeight('bold');
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+/** One line of plain text. A leading = + - or @ is dropped so the Sheet can never read a typed value as a formula. */
+function signupText_(v, max) {
+  return String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\s+/g, ' ').replace(/^[\s=+\-@]+/, '').trim().slice(0, max);
+}
+function isEmail_(v) { return /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(String(v || '')); }
+
+/* ====================================================================== */
 /*  SHARED LOGIC                                                          */
 /* ====================================================================== */
 
@@ -1205,5 +1275,6 @@ var API_ = {
   coachReport: coachReport, coachAthlete: coachAthlete, coachExport: coachExport,
   coachTravelPeople: coachTravelPeople, coachTravelPdf: coachTravelPdf, coachTravelEmail: coachTravelEmail,
   coachTrips: coachTrips, coachTripSave: coachTripSave, coachTrip: coachTrip, coachTripMark: coachTripMark,
-  coachTripLeg: coachTripLeg, coachTripHeadcount: coachTripHeadcount, coachTripDelete: coachTripDelete
+  coachTripLeg: coachTripLeg, coachTripHeadcount: coachTripHeadcount, coachTripDelete: coachTripDelete,
+  signupFreshman: signupFreshman
 };

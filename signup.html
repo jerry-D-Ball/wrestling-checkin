@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>West Point Wrestling Sign-Up</title>
+<meta name="theme-color" content="#111111">
+<meta name="color-scheme" content="light">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<style>
+:root{
+  --ink:#0f1b2d; --ink2:#44536a; --line:#d5dbe5; --bg:#eef1f6; --card:#fff;
+  --brand:#111111; --accent:#c8102e; --ok:#157a3c; --bad:#b3261e; --bad-bg:#fde3e1;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;-webkit-text-size-adjust:100%}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+#app{max-width:600px;margin:0 auto;min-height:100vh;padding-bottom:40px}
+.top{background:var(--brand);color:#fff;padding:14px 16px 12px;border-bottom:5px solid var(--accent)}
+.top h1{margin:0;font-size:18px;font-weight:700;letter-spacing:.2px}
+.top .sub{font-size:14px;opacity:.85}
+.pad{padding:16px}
+.intro h2{margin:4px 0 4px;font-size:26px;line-height:1.15}
+.intro p{margin:0 0 16px;color:var(--ink2)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:0 0 14px}
+.f + .f{margin-top:16px}
+label{display:block;font-weight:700;margin:0 0 6px}
+label small{font-weight:500;color:var(--ink2);font-size:15px}
+.field{display:block;width:100%;min-height:56px;border:2px solid #8793a6;border-radius:12px;padding:10px 14px;font-size:19px;background:#fff}
+.field:focus{outline:3px solid rgba(200,16,46,.4);border-color:var(--brand)}
+.field[aria-invalid=true]{border-color:var(--bad);background:#fffafa}
+.msg{color:var(--bad);font-weight:600;font-size:15px;margin:6px 0 0}
+.err{background:var(--bad-bg);color:var(--bad);border-radius:10px;padding:12px 14px;margin:0 0 14px;font-weight:600}
+.btn{display:block;width:100%;min-height:58px;border:0;border-radius:12px;background:var(--brand);color:#fff;font-size:20px;font-weight:700;padding:12px 16px}
+.btn:active{filter:brightness(.9)}
+.btn:focus-visible{outline:3px solid rgba(200,16,46,.6);outline-offset:2px}
+.btn[disabled]{opacity:.55}
+.btn.sec{background:#fff;color:var(--brand);border:2px solid var(--brand)}
+.fine{color:var(--ink2);font-size:14px;text-align:center;margin:14px 8px 0}
+.hero{border-radius:16px;padding:28px 18px;text-align:center;margin:0 0 14px;background:var(--ok);color:#fff}
+.hero:focus{outline:none}
+.hero .ic{font-size:76px;line-height:1;font-weight:800}
+.hero .t{font-size:28px;font-weight:800;margin:6px 0 4px;letter-spacing:.3px}
+.hero .n{font-size:22px;font-weight:700;overflow-wrap:anywhere}
+.hero .d{font-size:17px;margin-top:6px}
+.hp{position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top"><h1 id="team">West Point Dragons Wrestling</h1><div class="sub">Future Freshman Night</div></header>
+  <main class="pad">
+    <noscript><div class="err">This sign-up needs JavaScript. Please use the paper sign-up sheet or see a coach.</div></noscript>
+
+    <form id="form" novalidate>
+      <div class="intro">
+        <h2>Sign up for wrestling</h2>
+        <p>Leave your info and a West Point coach will be in touch about the wrestling program.</p>
+      </div>
+      <div class="card">
+        <div class="f">
+          <label for="student">Student name</label>
+          <input class="field" id="student" name="student" maxlength="60" autocomplete="off" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="next" aria-describedby="e-student">
+          <div class="msg" id="e-student" hidden></div>
+        </div>
+        <div class="f">
+          <label for="studentEmail">Student email <small>(optional)</small></label>
+          <input class="field" id="studentEmail" name="studentEmail" type="email" inputmode="email" maxlength="100" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next" aria-describedby="e-studentEmail">
+          <div class="msg" id="e-studentEmail" hidden></div>
+        </div>
+        <div class="f">
+          <label for="parent">Parent or guardian name</label>
+          <input class="field" id="parent" name="parent" maxlength="60" autocomplete="name" autocapitalize="words" autocorrect="off" spellcheck="false" enterkeyhint="next" aria-describedby="e-parent">
+          <div class="msg" id="e-parent" hidden></div>
+        </div>
+        <div class="f">
+          <label for="parentEmail">Parent or guardian email</label>
+          <input class="field" id="parentEmail" name="parentEmail" type="email" inputmode="email" maxlength="100" autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="send" aria-describedby="e-parentEmail">
+          <div class="msg" id="e-parentEmail" hidden></div>
+        </div>
+        <div class="hp" aria-hidden="true"><label for="website">Leave this box empty</label><input id="website" name="website" tabindex="-1" autocomplete="off"></div>
+      </div>
+      <div class="err" id="err" role="alert" hidden></div>
+      <button class="btn" id="go" type="submit">Sign up</button>
+      <p class="fine">Your information goes only to the West Point wrestling coaches, to contact you about the program.</p>
+    </form>
+
+    <section id="done" hidden>
+      <div class="hero" id="hero" tabindex="-1" role="status">
+        <div class="ic" aria-hidden="true">✓</div>
+        <div class="t">YOU'RE ON THE LIST</div>
+        <div class="n" id="who"></div>
+        <div class="d">A West Point wrestling coach will be in touch.</div>
+      </div>
+      <button class="btn sec" id="again" type="button">Sign up another student</button>
+    </section>
+  </main>
+</div>
+<script src="config.js"></script>
+<script>
+(function(){
+'use strict';
+var $=function(id){return document.getElementById(id);};
+var FIELDS=['student','studentEmail','parent','parentEmail'], busy=false;
+if(window.WP_TEAM)$('team').textContent=window.WP_TEAM;
+
+function val(id){return $(id).value.replace(/\s+/g,' ').trim();}
+function isEmail(v){return /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(v);}
+
+/* Same rules as the Sheet script, checked here first so a typo is caught before anything is sent. */
+function firstProblem(d){
+  if(d.student.length<2)return ['student','Enter the student\'s first and last name.'];
+  if(d.studentEmail&&!isEmail(d.studentEmail))return ['studentEmail','Check the student email. It should look like name@example.com. You can also leave it blank.'];
+  if(d.parent.length<2)return ['parent','Enter a parent or guardian name.'];
+  if(!d.parentEmail)return ['parentEmail','Enter a parent or guardian email so a coach can reach you.'];
+  if(!isEmail(d.parentEmail))return ['parentEmail','Check the parent email. It should look like name@example.com.'];
+  return null;
+}
+function clearErrors(){
+  FIELDS.forEach(function(f){$(f).removeAttribute('aria-invalid');$('e-'+f).hidden=true;$('e-'+f).textContent='';});
+  $('err').hidden=true;$('err').textContent='';
+}
+function showError(field,msg){
+  clearErrors();
+  if(field&&FIELDS.indexOf(field)>=0){
+    $(field).setAttribute('aria-invalid','true');$('e-'+field).textContent=msg;$('e-'+field).hidden=false;$(field).focus();
+  }else{
+    $('err').textContent=msg;$('err').hidden=false;$('err').scrollIntoView({block:'center'});
+  }
+}
+function send(d){
+  if(!window.WP_API)return Promise.resolve({ok:false,error:'BAD'});
+  var ctl=typeof AbortController!=='undefined'?new AbortController():null;
+  var t=setTimeout(function(){if(ctl)ctl.abort();},30000);
+  return fetch(window.WP_API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({fn:'signupFreshman',args:[d]}),redirect:'follow',signal:ctl?ctl.signal:undefined})
+    .then(function(r){if(!r.ok)throw new Error('http');return r.json();})
+    .then(function(j){clearTimeout(t);return j||{ok:false,error:'NET'};})
+    .catch(function(){clearTimeout(t);return {ok:false,error:'NET'};});
+}
+function setBusy(on){busy=on;$('go').disabled=on;$('go').textContent=on?'Signing you up…':'Sign up';}
+
+$('form').addEventListener('submit',function(e){
+  e.preventDefault();
+  if(busy)return;
+  var d={student:val('student'),studentEmail:val('studentEmail').toLowerCase(),parent:val('parent'),parentEmail:val('parentEmail').toLowerCase(),website:$('website').value};
+  var p=firstProblem(d);
+  if(p)return showError(p[0],p[1]);
+  clearErrors();setBusy(true);
+  send(d).then(function(r){
+    setBusy(false);
+    if(r.ok){
+      $('who').textContent=d.student;$('form').hidden=true;$('done').hidden=false;window.scrollTo(0,0);$('hero').focus();
+      return;
+    }
+    if(r.error==='FIELD')return showError(r.field,r.message);
+    if(r.error==='NET')return showError('','Not saved. Could not reach the sign-up list. Check your signal and tap Sign up again, or use the paper sign-up sheet.');
+    if(r.error==='BAD')return showError('','Not saved. Online sign-up is not turned on yet. Please use the paper sign-up sheet or see a coach.');
+    showError('',r.message||'Not saved. Something went wrong. Tap Sign up again, or use the paper sign-up sheet.');
+  });
+});
+FIELDS.forEach(function(f){
+  $(f).addEventListener('input',function(){ if($(f).getAttribute('aria-invalid')){$(f).removeAttribute('aria-invalid');$('e-'+f).hidden=true;} });
+});
+$('again').addEventListener('click',function(){
+  $('form').reset();clearErrors();$('done').hidden=true;$('form').hidden=false;window.scrollTo(0,0);$('student').focus();
+});
+})();
+</script>
+</body>
+</html>

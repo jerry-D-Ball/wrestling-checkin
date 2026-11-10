@@ -17,6 +17,7 @@ No athlete names, IDs or weights are stored in this repository. All data lives i
 - Athlete check-in (the QR code): https://jerry-d-ball.github.io/wrestling-checkin/
 - Coach screens: https://jerry-d-ball.github.io/wrestling-checkin/?p=coach
 - Printable QR poster: https://jerry-d-ball.github.io/wrestling-checkin/?p=poster
+- Future Freshman Night sign-up (its own QR code): https://jerry-d-ball.github.io/wrestling-checkin/signup.html
 
 ## One-time setup
 
@@ -48,6 +49,15 @@ The Travel tab holds one trip per meet. A trip is both the travel roster for the
 - **The email:** "Email this roster to the office" sends the PDF to `TRAVEL_EMAIL_TO` from the Google account that owns the Sheet. The address lives only in the Sheet's Config tab, not in this repository. The trip records when it was sent and flags the roster if it changes afterwards.
 - Sending email is a Google permission. After pasting a new `Code.gs`, run `setup` once so Google asks for it, then deploy a new version.
 
+## Future Freshman Night sign-up
+
+`signup.html` is a public page for incoming families: student name, student email (optional), parent or guardian name and email. It has its own QR code and needs no PIN or Student ID.
+
+- Each sign-up is one row in a separate Google Sheet. That Sheet's ID is in the attendance Sheet's Config tab as `SIGNUP_SHEET_ID`, not in this repository. If that Sheet cannot be opened, the row goes to a `FreshmanNight` tab in the attendance Sheet instead, so a sign-up is never lost.
+- The page can only add a row. It cannot read the list. The same student with the same parent email corrects their row instead of adding a second one.
+- The coach may add, move or reorder columns in the sign-up Sheet; rows follow the column headers.
+- To close sign-up, set `SIGNUP_OPEN` to `N` in Config.
+
 ## How the app knows an athlete is really there
 
 Set under More > "Where athletes can check in" on the coach screens.
@@ -64,6 +74,6 @@ Paste the new `Code.gs`, then Deploy > Manage deployments > pencil > Version: Ne
 
 ## Tests
 
-`node test/logic.test.js` checks the data script against a mock Sheet. `node test/ui.test.js` drives the real `index.html` in a phone-sized browser (needs Playwright). All names in the tests are made up.
+`node test/logic.test.js` checks the data script against a mock Sheet. `node test/ui.test.js` drives the real `index.html` in a phone-sized browser (needs Playwright), and `node test/signup.test.js` does the same for `signup.html`. All names in the tests are made up.
 
 `qrcode.js` is qrcode-generator by Kazuhiko Arase, MIT license.

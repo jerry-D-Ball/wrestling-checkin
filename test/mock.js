@@ -22,10 +22,11 @@
   Book.prototype = {
     getSheetByName: function (n) { return this.sheets[n] || null; },
     insertSheet: function (n) { return (this.sheets[n] = new Sheet(n)); },
+    getSheets: function () { var s = this.sheets; return Object.keys(s).map(function (k) { return s[k]; }); },
     getUrl: function () { return 'https://docs.google.com/spreadsheets/d/TEST/edit'; }
   };
-  g.__book = new Book(); g.__old = new Book();
-  g.SpreadsheetApp = { getActiveSpreadsheet: function () { return g.__book; }, openById: function () { return g.__old; }, getUi: function () { throw new Error('no ui'); } };
+  g.__book = new Book(); g.__old = new Book(); g.__signup = new Book();
+  g.SpreadsheetApp = { getActiveSpreadsheet: function () { return g.__book; }, openById: function (id) { if (id === 'NOSUCH') throw new Error('not found'); return id === 'SIGNUPID' ? g.__signup : g.__old; }, getUi: function () { throw new Error('no ui'); } };
   g.Utilities = {
     formatDate: function (d, tz, f) {
       var p = {}; new Intl.DateTimeFormat('en-US', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23', weekday: 'short' }).formatToParts(d).forEach(function (x) { p[x.type] = x.value; });
