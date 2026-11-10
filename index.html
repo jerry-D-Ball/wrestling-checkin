@@ -140,6 +140,19 @@ table.t .flag{color:var(--bad);font-weight:800}
 .switch{display:flex;align-items:center;gap:12px;justify-content:space-between;min-height:52px}
 .switch button{flex:none;min-width:92px;min-height:46px;border-radius:999px;border:2px solid #8793a6;background:#fff;font-weight:800;color:var(--ink2)}
 .switch button.on{background:var(--ok);border-color:var(--ok);color:#fff}
+.pick{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line);background:#fff;min-height:62px}
+.pick:last-child{border-bottom:0}
+.pick .nm{flex:1;min-width:0;font-weight:700;font-size:16px}
+.pick .nm small{display:block;font-weight:500;font-size:13px;color:var(--ink2)}
+.lvs{display:flex;gap:6px;flex:none}
+.lv{min-width:48px;min-height:46px;border-radius:10px;border:2px solid #8793a6;background:#fff;font-weight:800;font-size:14px;color:var(--ink2);padding:0 8px}
+.lv.on{background:#111;border-color:#111;color:#fff}
+.tr{border:1px solid #333;font-size:15px;color:#000;background:#fff}
+.trb{background:#0d0d0d;color:#ff4a40;font-weight:800;text-align:center;padding:18px 8px 6px}
+.trh,.trr{display:grid;grid-template-columns:86px 1fr;border-top:1px solid #333}
+.trh{background:#f00;font-weight:600}
+.trh span,.trr span{padding:4px 7px}
+.trh span:first-child,.trr span:first-child{border-right:1px solid #333}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .grid2 .btn{margin-top:0}
 
@@ -228,7 +241,7 @@ function athleteStart(){
       return renderAthlete();
     }
     A.me=r.me;
-    if(!A.me.status&&A.me.open&&pmode()!=='code')return tryCheckIn();
+    if(!A.me.staff&&!A.me.status&&A.me.open&&pmode()!=='code')return tryCheckIn();
     A.busy=false;renderAthlete();
   });
 }
@@ -286,6 +299,7 @@ function heroHtml(){
   if(A.busy)return '<div class="hero info"><div class="spin"></div><div class="t">'+E(A.busyMsg||'Checking you in…')+'</div><div class="n">'+E(m.name)+'</div></div>';
   if(!m)return '<div class="hero bad"><div class="ic">!</div><div class="t">NOT CHECKED IN</div><div class="d">'+E(A.err||'Could not load.')+'</div></div><button class="btn" data-a="retry">Try again</button><p class="hint" style="text-align:center;margin-bottom:14px">Still not working? Tell Coach — Coach can mark you here.</p>';
   var when=nice(m.date);
+  if(m.staff)return '<div class="hero info"><div class="t">Hi '+E(m.first)+'</div><div class="n">Manager / student assistant</div><div class="d">No practice check-in for you. On trip days your bus button shows up here.</div></div>';
   if(m.status==='Present')return '<div class="hero ok"><div class="ic">✓</div><div class="t">CHECKED IN</div><div class="n">'+E(m.name)+'</div><div class="d">'+E(t12(m.time))+' · '+E(when)+'</div></div>';
   if(m.status==='Late')return '<div class="hero late"><div class="ic">✓</div><div class="t">CHECKED IN — LATE</div><div class="n">'+E(m.name)+'</div><div class="d">'+E(t12(m.time))+' · '+E(when)+'</div></div>';
   if(m.status==='Excused'||m.status==='Absent')return '<div class="hero info"><div class="t">Coach marked you '+E(m.status)+'</div><div class="n">'+E(m.name)+'</div><div class="d">'+E(when)+' · If that is wrong, see Coach.</div></div>';
@@ -298,7 +312,7 @@ function heroHtml(){
          '<button class="btn" data-a="codeGo" style="margin-bottom:14px">Check in</button>';
 }
 function weightHtml(){
-  var m=A.me; if(!m||A.busy)return '';
+  var m=A.me; if(!m||A.busy||m.staff)return '';
   if(m.status!=='Present'&&m.status!=='Late')return '<div class="card"><h2>Weigh-in (pounds)</h2><p class="hint" style="margin:0">Weights open after you check in.</p></div>';
   function one(kind,label,val){
     return '<div class="wrow"><div><label class="l" for="w'+kind+'">'+label+'</label><input id="w'+kind+'" class="field" inputmode="decimal" placeholder="lb" value="'+E(val)+'"></div>'+
@@ -349,7 +363,7 @@ function renderLogin(err){
 }
 function guard(r){ if(r&&r.error==='PIN'){set('wp_pin','');C.pin='';renderLogin('PIN changed. Enter the new coach PIN.');return false;} return true; }
 function nav(){
-  var tabs=[['today','☑','Today'],['weights','⚖','Weights'],['bus','🚌','Bus'],['reports','▤','Reports'],['more','⋯','More']];
+  var tabs=[['today','☑','Today'],['weights','⚖','Weights'],['bus','🚌','Travel'],['reports','▤','Reports'],['more','⋯','More']];
   return '<nav class="nav"><div>'+tabs.map(function(t){return '<button data-a="tab" data-t="'+t[0]+'" class="'+(C.tab===t[0]?'on':'')+'"'+(C.tab===t[0]?' aria-current="page"':'')+'><i aria-hidden="true">'+t[1]+'</i>'+t[2]+'</button>';}).join('')+'</div></nav>';
 }
 function go(tab){
@@ -513,14 +527,14 @@ function loadTrips(){
 function renderBus(){
   if(C.form)return renderTripForm();
   if(C.trip)return renderTrip();
-  var h='<div class="top"><h1>'+E(BOOT.team)+' · Bus check</h1><div class="sub">Count everyone on, count everyone home.</div></div><div class="pad">';
+  var h='<div class="top"><h1>'+E(BOOT.team)+' · Travel</h1><div class="sub">Travel roster, office email and bus check.</div></div><div class="pad">';
   h+='<button class="btn" data-a="tripNew" style="margin-bottom:14px">+ New trip</button>';
   if(C.err)h+='<div class="err">'+E(C.err)+'</div>';
   if(!C.trips)h+='<div class="hero info"><div class="spin"></div></div>';
-  else if(!C.trips.length)h+='<div class="rows"><div class="empty">No trips yet. Make one before you load the bus — it takes about a minute.</div></div>';
+  else if(!C.trips.length)h+='<div class="rows"><div class="empty">No trips yet. Make one to pick the travel roster, email it to the office, and check the bus.</div></div>';
   else h+='<div class="rows">'+C.trips.map(function(t){
       var st=t.leg==='Done'?'Finished':(t.leg==='Return'?'Ride home':'Leaving')+' · '+t.accounted+' of '+t.total;
-      return '<button class="row'+(t.date===BOOT.today&&t.leg!=='Done'?' s-L':'')+'" data-a="tripOpen" data-id="'+E(t.id)+'"><span class="nm">'+E(t.name)+'<small>'+E(nice(t.date))+(t.date===BOOT.today?' · TODAY':'')+'</small></span><span class="pill p-none" style="border-style:solid">'+E(st)+'</span></button>';
+      return '<button class="row'+(t.date===BOOT.today&&t.leg!=='Done'?' s-L':'')+'" data-a="tripOpen" data-id="'+E(t.id)+'"><span class="nm">'+E(t.name)+'<small>'+E(nice(t.date))+(t.date===BOOT.today?' · TODAY':'')+(t.emailed==='yes'?' · roster emailed ✓':t.emailed==='changed'?' · <span class="warn">roster changed, send again</span>':'')+'</small></span><span class="pill p-none" style="border-style:solid">'+E(st)+'</span></button>';
     }).join('')+'</div>';
   $app.innerHTML=h+'</div>'+nav();
 }
@@ -543,7 +557,12 @@ function renderTrip(keep){
   var on=0,rel=0,miss=[];
   d.riders.forEach(function(r){var s=r[k].status; if(s==='On')on++; else if(s==='Released')rel++; else miss.push(r.name.split(',')[0]);});
   var hc=d.headcount[leg], total=d.riders.length;
-  var h='<div class="top"><h1>'+E(d.trip.name)+'</h1><div class="sub">'+E(nice(d.trip.date))+' · '+total+' athletes</div></div><div class="pad">';
+  var h='<div class="top"><h1>'+E(d.trip.name)+'</h1><div class="sub">'+E(nice(d.trip.date))+' · '+total+' traveling</div></div><div class="pad">';
+  var tv=d.travel;
+  if(tv){
+    var st=tv.changed?'<b style="color:#b3261e">Changed since it was emailed — send it again</b>':tv.emailedAt?'<b style="color:#157a3c">✓ Emailed to the office '+E(niceStamp(tv.emailedAt))+'</b>':'Not emailed to the office yet';
+    h+='<button class="note" data-a="rosterOpen" style="display:flex;width:100%;align-items:center;gap:10px;text-align:left;cursor:pointer;min-height:56px"><span style="flex:1"><b>Travel roster</b> · V '+tv.counts.V+' · JV '+tv.counts.JV+' · Other '+tv.counts.O+'<br>'+st+'</span><span class="pill p-none" style="border-style:solid">Roster / email</span></button>';
+  }
   h+='<div class="seg" role="tablist"><button data-a="tripView" data-v="Depart" class="'+(leg==='Depart'?'on':'')+'">① Leaving school</button><button data-a="tripView" data-v="Return" class="'+(leg==='Return'?'on':'')+'">② Coming home</button></div>';
   if(d.trip.leg!==leg&&d.trip.leg!=='Done')h+='<div class="note">Athletes scanning the QR code are boarding <b>'+(d.trip.leg==='Return'?'the ride home':'the trip out')+'</b>. <button class="link" data-a="tripLeg" data-v="'+leg+'">Switch scanning to this leg</button></div>';
   if(d.presence==='loc'||d.presence==='loconly'){
@@ -566,10 +585,10 @@ function renderTrip(keep){
   h+='<div class="rows">'+d.riders.map(function(r){
     var s=r[k], cls=s.status==='On'?'s-P':s.status==='Released'?'s-E':'s-A';
     var p=s.status==='On'?'<span class="pill p-P">✓ On '+E(t12(s.time))+(s.code?' · code':s.self?' · scan':'')+'</span>':s.status==='Released'?'<span class="pill p-E">Not riding</span>':'<span class="pill p-A">NOT ON · tap</span>';
-    var sub=s.status==='Released'&&s.note?E(s.note):(leg==='Return'&&r.dep.status!=='On'?'Did not ride out':'');
+    var sub=[{V:'Varsity',JV:'JV',O:'Other'}[r.level]||'',s.status==='Released'&&s.note?E(s.note):(leg==='Return'&&r.dep.status!=='On'?'Did not ride out':'')].filter(String).join(' · ');
     return '<button class="row '+cls+(r._p?' pending':'')+'" data-a="tapRider" data-id="'+E(r.id)+'"><span class="nm">'+E(r.name)+(sub?'<small>'+sub+'</small>':'')+'</span>'+p+'</button>';
   }).join('')+'</div>';
-  h+='<div style="margin-top:16px"><button class="btn ghost" data-a="tripBack">‹ All trips</button><button class="btn ghost" data-a="tripEdit">Change who is on this trip</button><button class="btn ghost" data-a="tripDelAsk" style="color:#b3261e">Delete this trip</button></div>';
+  h+='<div style="margin-top:16px"><button class="btn ghost" data-a="tripBack">‹ All trips</button><button class="btn ghost" data-a="tripEdit">Change the roster or excused line</button><button class="btn ghost" data-a="tripDelAsk" style="color:#b3261e">Delete this trip</button></div>';
   $app.innerHTML=h+'</div>'+nav(); if(keep)window.scrollTo(0,y);
 }
 function riderMark(id,status,note){
@@ -599,22 +618,80 @@ function riderSheet(id){
     '<button class="btn" style="background:#1e4fa3;margin-top:10px" data-a="rider" data-id="'+E(id)+'" data-s="Released">Not riding this bus</button>'+
     '<div style="margin-top:14px">'+(s.status?'<button class="btn danger" data-a="rider" data-id="'+E(id)+'" data-s="">Take off — NOT on the bus</button>':'')+'<button class="btn ghost" data-a="close">Cancel</button></div>');
 }
+function people(){return C.people||(C.day?C.day.athletes.map(function(a){return {id:a.id,name:a.name,grade:a.grade,cleared:a.cleared,staff:false};}):null);}
+function loadPeople(){
+  var had=!!people();
+  api('coachTravelPeople',C.pin,(C.form&&C.form.id)||'').then(function(r){
+    if(!guard(r)||!C.form)return;
+    if(r.ok){C.people=r.people;C.prev=r.prev;}
+    else if(!C.day)return loadDay(false,true).then(function(){if(C.form){keepForm();renderTripForm();}});
+    if(!had||!typing()){keepForm();renderTripForm();}
+  });
+}
+function mdOf(ymd){var p=String(ymd||'').split('-');return p.length===3?Number(p[1])+'/'+Number(p[2]):'';}
+function niceStamp(s){var p=String(s||'').split(' ');return nice(p[0])+(p[1]?' at '+t12(p[1]):'');}
+function lvTxt(){
+  var c={V:0,JV:0,O:0},f=C.form;Object.keys(f.lv).forEach(function(k){if(c[f.lv[k]]!=null)c[f.lv[k]]++;});
+  return (c.V+c.JV+c.O)+' traveling · Varsity '+c.V+' · JV '+c.JV+' · Other '+c.O;
+}
 function renderTripForm(){
-  var f=C.form, d=C.day;
+  var f=C.form, P=people();
   var h='<div class="top"><h1>'+(f.id?'Change trip':'New trip')+'</h1></div><div class="pad">';
-  h+='<div class="card"><label class="l" for="tname">Trip name</label><input id="tname" class="field" maxlength="60" placeholder="Meet at Agua Fria" value="'+E(f.name)+'" style="font-size:18px">'+
-     '<label class="l" for="tdate" style="margin-top:12px">Date</label><input id="tdate" class="field" type="date" value="'+E(f.date)+'" style="font-size:18px"></div>';
-  if(!d){h+='<div class="hero info"><div class="spin"></div><div class="d">Loading roster…</div></div>';}
+  h+='<div class="card"><label class="l" for="tname">Trip name</label><input id="tname" class="field" maxlength="60" placeholder="Quad at Millennium" value="'+E(f.name)+'" style="font-size:18px">'+
+     '<label class="l" for="tdate" style="margin-top:12px">Date</label><input id="tdate" class="field" type="date" value="'+E(f.date)+'" style="font-size:18px">'+
+     '<label class="l" for="texc" style="margin-top:12px">Excused line for the office</label><input id="texc" class="field" maxlength="120" placeholder="Excused 12/1 for classes 5-7" value="'+E(f.excuse)+'" style="font-size:18px">'+
+     '<p class="hint">Printed on the roster that is emailed. Finish it with the class periods, like 5-7.</p></div>';
+  if(!P){h+='<div class="hero info"><div class="spin"></div><div class="d">Loading roster…</div></div>';}
   else{
-    var n=Object.keys(f.sel).filter(function(k){return f.sel[k];}).length;
-    h+='<div class="sech">Who is riding? <span id="seln">'+n+'</span> picked</div><div class="chips"><button class="chip" data-a="selAll">Everyone</button><button class="chip" data-a="selHere">Here today</button><button class="chip" data-a="selNone">Clear</button></div>'+
-       '<div class="rows">'+d.athletes.map(function(a){return '<label class="check"><input type="checkbox" data-c="sel" data-id="'+E(a.id)+'"'+(f.sel[a.id]?' checked':'')+'>'+E(a.name)+(a.cleared?'':' <span style="color:#b3261e;font-size:13px">Not cleared</span>')+'</label>';}).join('')+'</div>';
+    h+='<div class="sech">Who is traveling?</div><div class="note" id="lvn" style="font-weight:700" aria-live="polite">'+lvTxt()+'</div>'+
+       '<div class="chips">'+(C.prev&&!f.id?'<button class="chip" data-a="lvPrev">Same as '+E(C.prev.name)+'</button>':'')+'<button class="chip'+(f.only?' on':'')+'" data-a="lvOnly" aria-pressed="'+!!f.only+'">Show picked only</button><button class="chip" data-a="lvClear">Clear all</button></div>'+
+       '<input class="field" id="pq" data-i="psearch" placeholder="Search name" value="'+E(f.q||'')+'" autocomplete="off" style="margin-bottom:12px;min-height:50px;font-size:18px"><div id="plist"></div>'+
+       (C.people?'<button class="btn sec" data-a="mgrAdd" style="margin-top:12px">Add a manager or student assistant</button>':'');
   }
   if(f.err)h+='<div class="err">'+E(f.err)+'</div>';
   h+='<div style="margin-top:14px"><button class="btn" data-a="tripSave"'+(f.busy?' disabled':'')+'>'+(f.busy?'Saving…':'Save trip')+'</button><button class="btn ghost" data-a="tripCancel">Cancel</button></div>';
   $app.innerHTML=h+'</div>'+nav();
+  renderPick();
 }
-function keepForm(){var a=document.getElementById('tname'),b=document.getElementById('tdate');if(a)C.form.name=a.value;if(b)C.form.date=b.value;}
+function renderPick(){
+  var el=document.getElementById('plist'),f=C.form; if(!el||!f)return;
+  var q=(f.q||'').trim().toLowerCase();
+  var list=people().filter(function(a){return (!q||a.name.toLowerCase().indexOf(q)>=0)&&(!f.only||f.lv[a.id]);});
+  function row(a){
+    var cur=f.lv[a.id]||'';
+    function b(v,label,say){return '<button class="lv'+(cur===v?' on':'')+'" data-a="lv" data-id="'+E(a.id)+'" data-v="'+v+'" aria-pressed="'+(cur===v)+'" aria-label="'+say+': '+E(a.name)+'">'+label+'</button>';}
+    return '<div class="pick"><span class="nm">'+E(a.name)+'<small>'+(a.staff?'Manager / student assistant':'Gr '+E(a.grade||'?')+(a.cleared?'':' · <span class="warn" style="color:#b3261e;font-weight:700">Not cleared</span>'))+'</small></span><span class="lvs">'+
+      (a.staff?b('O','Going','Going'):b('V','V','Varsity')+b('JV','JV','JV')+b('O','Other','Other'))+'</span></div>';
+  }
+  var ath=list.filter(function(a){return !a.staff;}), st=list.filter(function(a){return a.staff;});
+  el.innerHTML=(ath.length?'<div class="rows">'+ath.map(row).join('')+'</div>':'')+
+    (st.length?'<div class="sech">Managers and student assistants</div><div class="rows">'+st.map(row).join('')+'</div>':'')+
+    (!list.length?'<div class="rows"><div class="empty">'+(q?'No one matches "'+E(f.q)+'".':'No one is picked yet.')+'</div></div>':'');
+}
+function keepForm(){
+  var f=C.form,g=function(id){return document.getElementById(id);}; if(!f)return;
+  if(g('tname'))f.name=g('tname').value; if(g('tdate'))f.date=g('tdate').value; if(g('texc'))f.excuse=g('texc').value; if(g('pq'))f.q=g('pq').value;
+}
+
+/* ---------- travel roster: preview, PDF, email to the office ---------- */
+function rosterSheet(msg,bad){
+  var d=C.trip.data, tv=d.travel, t=d.trip;
+  var md=mdOf(t.date), m=/(\d{1,2}\/\d{1,2})/.exec(tv.excuse||''), mismatch=m&&m[1]!==md;
+  var unfinished=!tv.excuse||/classes?\s*$/i.test(tv.excuse);
+  var h='<h3>Travel roster</h3><p>'+E(t.name)+' · '+E(nice(t.date))+' · '+tv.rows.length+' listed</p>'+
+    '<div class="tr"><div class="trb">'+E(tv.title)+'</div><div class="trb">'+(tv.excuse?E(tv.excuse):'(no excused line yet)')+'</div><div class="trh"><span>ID</span><span>Name</span></div>'+
+    tv.rows.map(function(r){return '<div class="trr"><span>'+E(r.id)+'</span><span>'+E(r.name)+'</span></div>';}).join('')+'</div>';
+  if(unfinished)h+='<div class="err">The excused line is not finished. Tap "Change the roster or excused line" and add the class periods.</div>';
+  else if(mismatch)h+='<div class="err">Check the date: the excused line says '+E(m[1])+' but the trip is on '+E(md)+'.</div>';
+  if(msg)h+='<div class="'+(bad?'err':'saved')+'" style="margin-top:10px">'+E(msg)+'</div>';
+  h+='<p style="margin:12px 0 8px;color:#0f1b2d">'+(tv.to?'Goes to: <b>'+E(tv.to)+'</b>'+(tv.cc?'<br>Copy to: '+E(tv.cc):''):'<b style="color:#b3261e">No office email address is set.</b> Add it in the Sheet: Config tab, TRAVEL_EMAIL_TO.')+
+    (tv.emailedAt?'<br>'+(tv.changed?'<b style="color:#b3261e">Changed since it was emailed '+E(niceStamp(tv.emailedAt))+'.</b> Send it again so the office has the right list.':'<b style="color:#157a3c">✓ Emailed '+E(niceStamp(tv.emailedAt))+'</b>'):'')+'</p>';
+  h+='<button class="btn" data-a="rosterEmail"'+(unfinished||!tv.to?' disabled':'')+'>'+(tv.emailedAt&&!tv.changed?'Email it again':'Email this roster to the office')+'</button>'+
+     '<button class="btn sec" data-a="rosterPdf"'+(unfinished?' disabled':'')+'>Get the PDF</button>'+
+     '<button class="btn ghost" data-a="tripEdit">Change the roster or excused line</button><button class="btn ghost" data-a="close">Close</button>';
+  openSheet(h);
+}
+function needsScript(r){return r&&r.error==='BAD'?'This needs the updated Code.gs in the Sheet. Paste it, run setup, and deploy a new version.':(r&&r.message)||'Something went wrong.';}
 
 /* ---------- reports ---------- */
 function setRange(r){
@@ -804,7 +881,7 @@ var act={
   showRest:function(){C.showRest=true;renderWeights(true);},
   wtYes:function(){var el=C.wtEl;closeSheet();if(el)saveWt(el,true);},
   wtNo:function(){var el=C.wtEl;closeSheet();if(el){el.value='';el.focus();}},
-  tripNew:function(){C.form={name:'',date:BOOT.today,sel:{}};renderTripForm();window.scrollTo(0,0);if(!C.day)loadDay(false,true).then(function(){if(C.form)renderTripForm();});},
+  tripNew:function(){C.form={name:'',date:BOOT.today,excuse:'Excused '+mdOf(BOOT.today)+' for classes ',lv:{},q:'',only:false};renderTripForm();window.scrollTo(0,0);loadPeople();},
   tripOpen:function(ds){loadTrip(ds.id);},
   tripBack:function(){C.trip=null;C.trips=null;loadTrips();},
   tripView:function(ds){C.trip.view=ds.v;renderTrip();},
@@ -819,16 +896,68 @@ var act={
     var T=C.trip; T.data.headcount[T.view]={n:ds.n,time:nowHM()}; renderTrip(true);
     api('coachTripHeadcount',C.pin,T.id,T.view,ds.n).then(function(r){ if(!guard(r))return; if(!r.ok){delete T.data.headcount[T.view];renderTrip(true);toast('NOT SAVED: '+r.message,null,true);} });
   },
-  tripEdit:function(){var t=C.trip.data.trip,sel={};t.roster.forEach(function(id){sel[id]=true;});C.form={id:t.id,name:t.name,date:t.date,sel:sel};if(!C.day)loadDay(false,true).then(function(){if(C.form)renderTripForm();});renderTripForm();window.scrollTo(0,0);},
+  tripEdit:function(){closeSheet();var t=C.trip.data.trip,lv={};t.roster.forEach(function(id){lv[id]=(t.levels&&t.levels[id])||'V';});C.form={id:t.id,name:t.name,date:t.date,excuse:t.excuse||('Excused '+mdOf(t.date)+' for classes '),lv:lv,q:'',only:true};renderTripForm();window.scrollTo(0,0);loadPeople();},
   tripDelAsk:function(){openSheet('<h3>Delete this trip?</h3><p>'+E(C.trip.data.trip.name)+' and its bus records will be erased. This cannot be undone.</p><button class="btn danger" data-a="tripDel">Delete trip</button><button class="btn ghost" data-a="close">Keep it</button>');},
   tripDel:function(){var id=C.trip.id;closeSheet();C.trip=null;C.trips=null;renderBus();api('coachTripDelete',C.pin,id).then(function(){loadTrips();});},
   tripCancel:function(){var id=C.form.id;C.form=null;if(id)renderTrip();else renderBus();},
-  selAll:function(){keepForm();C.day.athletes.forEach(function(a){C.form.sel[a.id]=true;});renderTripForm();},
-  selNone:function(){keepForm();C.form.sel={};renderTripForm();},
-  selHere:function(){keepForm();C.form.sel={};C.day.athletes.forEach(function(a){if(a.status==='Present'||a.status==='Late')C.form.sel[a.id]=true;});renderTripForm();},
+  lv:function(ds,el){
+    var f=C.form; if(f.lv[ds.id]===ds.v)delete f.lv[ds.id]; else f.lv[ds.id]=ds.v;
+    var sib=el.parentNode.querySelectorAll('.lv');
+    for(var i=0;i<sib.length;i++){var on=f.lv[ds.id]===sib[i].getAttribute('data-v');sib[i].className='lv'+(on?' on':'');sib[i].setAttribute('aria-pressed',on);}
+    var n=document.getElementById('lvn'); if(n)n.textContent=lvTxt();
+  },
+  lvClear:function(){keepForm();C.form.lv={};C.form.only=false;renderTripForm();},
+  lvOnly:function(){keepForm();C.form.only=!C.form.only;renderTripForm();},
+  lvPrev:function(){
+    keepForm();var f=C.form,ok={};people().forEach(function(a){ok[a.id]=a;});f.lv={};
+    C.prev.roster.forEach(function(id){if(ok[id])f.lv[id]=ok[id].staff?'O':(C.prev.levels[id]||'V');});
+    f.only=true;renderTripForm();toast('Copied from '+C.prev.name+'. Check the list before you save.');
+  },
+  mgrAdd:function(){
+    openSheet('<h3>Add a manager or student assistant</h3><p>They go on travel rosters as Other. They are not on the daily attendance list.</p>'+
+      '<label class="l" for="mid">Student ID</label><input id="mid" class="field" inputmode="numeric" maxlength="10">'+
+      '<label class="l" for="mfn" style="margin-top:10px">First name</label><input id="mfn" class="field" maxlength="40">'+
+      '<label class="l" for="mln" style="margin-top:10px">Last name</label><input id="mln" class="field" maxlength="40"><div id="merr"></div>'+
+      '<div style="margin-top:14px"><button class="btn" data-a="mgrSave">Add and put on this trip</button><button class="btn ghost" data-a="close">Cancel</button></div>');
+  },
+  mgrSave:function(ds,el){
+    var g=function(id){return document.getElementById(id).value.trim();},a={id:g('mid'),first:g('mfn'),last:g('mln'),grade:'',role:'Manager'};
+    el.disabled=true;
+    api('coachAddAthlete',C.pin,a).then(function(r){
+      if(!guard(r))return;
+      if(!r.ok){el.disabled=false;var m=document.getElementById('merr');if(m)m.innerHTML='<div class="err">'+E(r.message)+'</div>';return;}
+      closeSheet();keepForm();
+      if(!r.existing&&C.people){C.people.push({id:a.id,name:a.last+', '+a.first,grade:'',cleared:true,staff:true});}
+      if(C.form){C.form.lv[a.id]='O';renderTripForm();}
+      toast(r.message||(a.first+' '+a.last+' added as Other.'));loadPeople();
+    });
+  },
+  rosterOpen:function(){rosterSheet();},
+  rosterEmail:function(ds,el){
+    var id=C.trip.id; el.disabled=true; el.textContent='Sending…';
+    api('coachTravelEmail',C.pin,id).then(function(r){
+      if(!guard(r))return;
+      if(!r.ok){if(!C.trip||C.trip.id!==id)return toast('Roster NOT emailed: '+needsScript(r),null,true);
+        return rosterSheet(r.error==='NET'?'No answer from the server, so the email may or may not have gone out. Close this, wait a minute, and look for "Emailed" on the trip before sending again.':needsScript(r),true);}
+      closeSheet();toast('Roster emailed to '+r.to+'.');if(C.trip&&C.trip.id===id)loadTrip(id,true);
+    });
+  },
+  rosterPdf:function(ds,el){
+    var id=C.trip.id; el.disabled=true; el.textContent='Making the PDF…';
+    api('coachTravelPdf',C.pin,id).then(function(r){
+      if(!guard(r)||!C.trip||C.trip.id!==id)return;
+      if(!r.ok)return rosterSheet(needsScript(r),true);
+      try{
+        var bin=atob(r.b64),u=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
+        if(C.pdfUrl)URL.revokeObjectURL(C.pdfUrl);
+        C.pdfUrl=URL.createObjectURL(new Blob([u],{type:'application/pdf'}));
+        openSheet('<h3>The PDF is ready</h3><p>'+E(r.filename)+'</p><a class="btn" id="pdflink" style="text-align:center;text-decoration:none;line-height:32px" href="'+C.pdfUrl+'" download="'+E(r.filename)+'" target="_blank" rel="noopener">Open the PDF</a><button class="btn ghost" data-a="rosterOpen">‹ Back to the roster</button>');
+      }catch(e){rosterSheet('Could not open the PDF on this device.',true);}
+    });
+  },
   tripSave:function(){
     keepForm();var f=C.form;f.busy=true;f.err='';renderTripForm();
-    api('coachTripSave',C.pin,{id:f.id||'',name:f.name,date:f.date,roster:Object.keys(f.sel).filter(function(k){return f.sel[k];})}).then(function(r){
+    api('coachTripSave',C.pin,{id:f.id||'',name:f.name,date:f.date,roster:Object.keys(f.lv),levels:f.lv,excuse:f.excuse}).then(function(r){
       if(!guard(r))return; f.busy=false;
       if(!r.ok){f.err=r.message;return renderTripForm();}
       C.form=null;C.trips=null;loadTrip(r.id);window.scrollTo(0,0);
@@ -898,12 +1027,20 @@ document.addEventListener('click',function(e){
   var f=act[el.getAttribute('data-a')]; if(f){ if(el.tagName==='BUTTON')e.preventDefault(); f(el.dataset,el); }
 });
 document.addEventListener('change',function(e){
-  var el=e.target,c=el.getAttribute&&el.getAttribute('data-c'); if(!c)return;
+  var el=e.target,c=el.getAttribute&&el.getAttribute('data-c');
+  if(el.id==='tdate'&&C.form){   // keep the date in the excused line in step with the trip date
+    var x=document.getElementById('texc'),md=mdOf(el.value);
+    if(x&&md){ if(!x.value.trim())x.value='Excused '+md+' for classes '; else x.value=x.value.replace(/^(\s*Excused\s+)\d{1,2}\/\d{1,2}/i,'$1'+md); }
+  }
+  if(!c)return;
   if(c==='wt')saveWt(el,false);
-  else if(c==='sel'){C.form.sel[el.getAttribute('data-id')]=el.checked;var n=document.getElementById('seln');if(n)n.textContent=Object.keys(C.form.sel).filter(function(k){return C.form.sel[k];}).length;}
   else if(c==='cfg'){api('coachSetConfig',C.pin,el.getAttribute('data-k'),el.value).then(function(r){ if(!guard(r))return; if(!r.ok)return toast('NOT SAVED: '+r.message,null,true); toast('Saved.'); loadDay(false,true); });}
 });
-document.addEventListener('input',function(e){ if(e.target.getAttribute&&e.target.getAttribute('data-i')==='search'){C.q=e.target.value;renderList();} });
+document.addEventListener('input',function(e){
+  var i=e.target.getAttribute&&e.target.getAttribute('data-i');
+  if(i==='search'){C.q=e.target.value;renderList();}
+  else if(i==='psearch'&&C.form){C.form.q=e.target.value;renderPick();}
+});
 document.addEventListener('keydown',function(e){
   if(e.key==='Escape'&&sheetOpen())return closeSheet();
   if(e.key!=='Enter')return;

@@ -39,6 +39,16 @@
   g.LockService = { getScriptLock: function () { return { waitLock: function () {}, releaseLock: function () {} }; } };
   g.ScriptApp = { getService: function () { return { getUrl: function () { return 'https://script.google.com/macros/s/TEST/exec'; } }; } };
   g.Logger = { log: function () {} };
+  g.__mail = []; g.__mailFail = '';
+  g.MailApp = { sendEmail: function (msg) { if (g.__mailFail) throw new Error(g.__mailFail); g.__mail.push(msg); } };
+  g.Utilities.newBlob = function (data, type, name) {
+    var b = { __data: data, __type: type, __name: name,
+      getAs: function (t) { return g.Utilities.newBlob('%PDF-1.4 ' + data, t, name); },
+      setName: function (n) { b.__name = n; return b; }, getName: function () { return b.__name; },
+      getBytes: function () { var out = []; for (var i = 0; i < b.__data.length; i++) out.push(b.__data.charCodeAt(i) & 255); return out; } };
+    return b;
+  };
+  g.Utilities.base64Encode = function (bytes) { var s = ''; for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i] & 255); return (typeof btoa === 'function') ? btoa(s) : Buffer.from(s, 'binary').toString('base64'); };
   g.ContentService = { MimeType: { JSON: 1 }, createTextOutput: function (t) { return { __text: t, setMimeType: function () { return this; } }; } };
   g.__seedOld = function () {
     var names = [['Marco','Alvarez',9],['Dante','Brooks',11],['Eli','Castillo',10],['Jonah','Diaz',12],['Theo','Estrada',9],['Andre','Flores',10],['Micah','Garza',11],['Isaac','Hale',9],['Owen','Ibarra',12],['Luis','Jimenez',10],['Kai','Keller',11],['Nico','Lopez',9],['Sam','Medina',10],['Reid','Navarro',12],['Cruz','Ortega',9],['Jude','Pena',11],['Ty','Quintero',10],['Max','Ramos',9]];

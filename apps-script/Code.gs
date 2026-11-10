@@ -7,15 +7,20 @@
  * FIRST TIME: 1) Run "setup" once (Run button above).
  *             2) Deploy > New deployment > Web app > Execute as: Me, Who has access: Anyone.
  *             3) Copy the web app URL (ends in /exec) and give it to Claude for config.js.
- * You should not need to edit this file again.
+ *
+ * AFTER PASTING A NEW COPY OF THIS FILE:
+ *             1) Run "setup" again. It is safe to repeat, and it asks for any new permission
+ *                (such as sending the travel roster email).
+ *             2) Deploy > Manage deployments > pencil > Version: New version > Deploy.
+ *                Do NOT make a new deployment, or the app's address changes.
  */
 
 var TABS = {
-  Athletes:   ['StudentID', 'FirstName', 'LastName', 'Grade', 'Eligible', 'Injured', 'Active'],
+  Athletes:   ['StudentID', 'FirstName', 'LastName', 'Grade', 'Eligible', 'Injured', 'Active', 'Role'],
   Attendance: ['Date', 'StudentID', 'Name', 'Status', 'Time', 'Method', 'Note', 'DeviceID', 'UpdatedAt'],
   Weights:    ['Date', 'StudentID', 'Name', 'PreWeight', 'PreTime', 'PostWeight', 'PostTime', 'ChangeLb', 'ChangePct', 'EnteredBy'],
   Schedule:   ['Date', 'Start', 'End', 'Note'],
-  Trips:      ['TripID', 'Date', 'Name', 'Leg', 'Roster', 'Created', 'DepLat', 'DepLng', 'RetLat', 'RetLng'],
+  Trips:      ['TripID', 'Date', 'Name', 'Leg', 'Roster', 'Created', 'DepLat', 'DepLng', 'RetLat', 'RetLng', 'Levels', 'Excuse', 'EmailedAt', 'EmailedTo', 'EmailedKey'],
   TripLog:    ['TripID', 'StudentID', 'Name', 'Leg', 'Status', 'Time', 'Method', 'Note'],
   Config:     ['Key', 'Value', 'What it does']
 };
@@ -37,6 +42,11 @@ var DEFAULTS = [
   ['SCHOOL_LNG', '', 'Longitude of the wrestling room.'],
   ['SCHOOL_RADIUS_M', '250', 'How close to the wrestling room a phone must be, in meters (250 m is about 270 yards).'],
   ['BUS_RADIUS_M', '200', 'How close to the bus a phone must be to board by scanning, in meters.'],
+  ['TRAVEL_TITLE', "West Point Men's Wrestling", 'Title printed at the top of the travel roster PDF.'],
+  ['TRAVEL_EMAIL_TO', '', 'Who the travel roster is emailed to (attendance office). Separate several addresses with commas.'],
+  ['TRAVEL_EMAIL_CC', '', 'Optional: who gets a copy, for example your school email. Replies go to this address.'],
+  ['TRAVEL_EMAIL_GREETING', 'Hello,', 'First line of the travel roster email.'],
+  ['TRAVEL_EMAIL_SIGNOFF', 'West Point Wrestling Coaching Staff', 'Last line of the travel roster email.'],
   ['WEIGHT_LOSS_FLAG_PCT', '3', 'Flag an athlete whose weight drops more than this percent in one practice.'],
   ['OLD_SHEET_ID', '', 'ID of the old attendance Sheet. The roster is copied from its Athletes tab.'],
   ['SITE_URL', 'https://jerry-d-ball.github.io/wrestling-checkin/', 'Address of the app website. This is what the QR code points to.']
@@ -94,6 +104,7 @@ function setup() {
   __memo = {};
   var have = {};
   read_('Config').rows.forEach(function (r) { have[r.Key] = true; });
+  var firstTime = !have.COACH_PIN;
   var cfgSheet = ss.getSheetByName('Config');
   DEFAULTS.forEach(function (d) {
     if (have[d[0]]) return;
@@ -106,8 +117,9 @@ function setup() {
   if (read_('Athletes').rows.length === 0) {
     try { msg = importRoster_(); } catch (err) { msg = 'Roster was NOT copied (' + err.message + '). Paste your roster into the Athletes tab.'; }
   }
-  var out = 'Setup complete. ' + msg + '\nCoach PIN: ' + cfg_('COACH_PIN') +
-    '\n\nNext: Deploy > New deployment > Web app > Execute as "Me", Who has access "Anyone". Then copy the web app URL (ends in /exec) and give it to Claude.';
+  var out = 'Setup complete. ' + msg + '\nCoach PIN: ' + cfg_('COACH_PIN') + (firstTime
+    ? '\n\nNext: Deploy > New deployment > Web app > Execute as "Me", Who has access "Anyone". Then copy the web app URL (ends in /exec) and give it to Claude.'
+    : '\n\nNext: Deploy > Manage deployments > pencil > Version: New version > Deploy. (Do not make a new deployment.)');
   try { SpreadsheetApp.getUi().alert(out); } catch (err) { /* run from editor */ }
   Logger.log(out);
   return out;
@@ -178,6 +190,7 @@ function athleteCheckIn(studentId, deviceId, proof) {
   return safe_(function () {
     var a = athlete_(studentId);
     if (!a) return { ok: false, error: 'NOT_FOUND', message: 'That ID is not on the wrestling roster. See Coach.' };
+    if (a.staff) return { ok: false, error: 'STAFF', message: 'You are listed as a manager or student assistant. There is no practice check-in for you.', me: stateFor_(a, deviceId) };
     var day = today_();
     return locked_(function () {
       var existing = find_('Attendance', function (r) { return r.Date === day && r.StudentID === a.id; });
@@ -239,7 +252,7 @@ function stateFor_(a, deviceId) {
     trip = { name: t.Name, leg: t.Leg, status: log ? log.Status : '', time: log ? log.Time : '' };
   }
   return {
-    id: a.id, first: a.first, name: a.first + ' ' + a.last, date: day,
+    id: a.id, first: a.first, name: a.first + ' ' + a.last, date: day, staff: !!a.staff,
     status: att ? att.Status : '', time: att ? att.Time : '',
     open: w.open, closedReason: w.open ? '' : w.reason, presence: presenceMode_(), practice: w.practice ? { start: w.practice.start, end: w.practice.end, note: w.practice.note } : null,
     pre: wt ? wt.PreWeight : '', post: wt ? wt.PostWeight : '', change: wt ? wt.ChangeLb : '',
@@ -261,7 +274,7 @@ function coachDay(pin, date) {
     read_('Attendance').rows.forEach(function (r) { if (r.Date === day) att[r.StudentID] = r; });
     read_('Weights').rows.forEach(function (r) { if (r.Date === day) wts[r.StudentID] = r; });
     var lastW = lastWeights_(day);
-    var list = roster_(true).map(function (a) {
+    var list = wrestlers_().map(function (a) {
       var r = att[a.id] || {}, w = wts[a.id] || {};
       return { id: a.id, name: a.last + ', ' + a.first, grade: a.grade, cleared: a.cleared, injured: a.injured,
                status: r.Status || '', time: r.Time || '', method: r.Method || '', note: r.Note || '',
@@ -386,17 +399,20 @@ function coachFillWeeks(pin, monday, firstSlot, weeks) {
   });
 }
 
+/** a = {id, first, last, grade, role}. role 'Manager' = manager or student assistant: travel only, not on the daily list. */
 function coachAddAthlete(pin, a) {
   return coach_(pin, function () {
     var id = String((a && a.id) || '').trim(), first = String((a && a.first) || '').trim(), last = String((a && a.last) || '').trim();
+    var staff = /manager/i.test(String((a && a.role) || ''));
     if (!/^\d{3,10}$/.test(id)) return { ok: false, message: 'Student ID should be numbers only.' };
     if (!first || !last) return { ok: false, message: 'Enter first and last name.' };
     return locked_(function () {
+      ensureCols_('Athletes');
       var ex = find_('Athletes', function (r) { return r.StudentID === id; });
-      if (ex) { update_('Athletes', ex._row, { Active: 'Y' }); __memo = {}; return { ok: true, message: ex.FirstName + ' ' + ex.LastName + ' was already on the list and is now active.' }; }
-      append_('Athletes', { StudentID: id, FirstName: first, LastName: last, Grade: String((a && a.grade) || ''), Eligible: '', Injured: '', Active: 'Y' });
+      if (ex) { update_('Athletes', ex._row, { Active: 'Y' }); __memo = {}; return { ok: true, id: id, existing: true, message: ex.FirstName + ' ' + ex.LastName + ' was already on the list and is now active.' }; }
+      append_('Athletes', { StudentID: id, FirstName: first, LastName: last, Grade: String((a && a.grade) || ''), Eligible: '', Injured: '', Active: 'Y', Role: staff ? 'Manager' : '' });
       __memo = {};
-      return { ok: true };
+      return { ok: true, id: id };
     });
   });
 }
@@ -433,7 +449,7 @@ function report_(from, to) {
     map[r.StudentID + '|' + r.Date] = r.Status;
   });
   var days = Object.keys(dates).sort();
-  var rows = roster_(true).map(function (a) {
+  var rows = wrestlers_().map(function (a) {
     var c = { P: 0, L: 0, E: 0, A: 0 }, marks = [];
     days.forEach(function (d) {
       var s = map[a.id + '|' + d] || 'Absent';
@@ -495,23 +511,31 @@ function coachTrips(pin) {
       var ids = tripRoster_(t);
       var leg = t.Leg === 'Return' ? 'Return' : 'Depart';
       var n = logs.filter(function (l) { return l.TripID === t.TripID && l.Leg === leg && (l.Status === 'On' || l.Status === 'Released'); }).length;
-      return { id: t.TripID, date: t.Date, name: t.Name, leg: t.Leg, total: ids.length, accounted: n };
+      return { id: t.TripID, date: t.Date, name: t.Name, leg: t.Leg, total: ids.length, accounted: n,
+               emailed: !t.EmailedAt ? '' : (t.EmailedKey === travelKey_(t) ? 'yes' : 'changed') };
     }).sort(function (a, b) { return a.date < b.date ? 1 : -1; });
     return { ok: true, today: today_(), trips: list };
   });
 }
 
+/** t = {id, name, date, roster: [ids], levels: {id: 'V'|'JV'|'O'}, excuse: 'Excused 12/1 for classes 5-7'} */
 function coachTripSave(pin, t) {
   return coach_(pin, function () {
-    var name = String((t && t.name) || '').trim(), date = normDate_(t && t.date), roster = (t && t.roster) || [];
+    var name = String((t && t.name) || '').trim(), date = normDate_(t && t.date);
+    var roster = ((t && t.roster) || []).map(function (x) { return String(x).replace(/\D/g, ''); }).filter(String);
     if (!name) return { ok: false, message: 'Give the trip a name, like "Meet at Agua Fria".' };
     if (!date) return { ok: false, message: 'Pick the trip date.' };
-    if (!roster.length) return { ok: false, message: 'Pick at least one athlete for the bus.' };
+    if (!roster.length) return { ok: false, message: 'Pick at least one person for the trip.' };
+    var lv = (t && t.levels) || {}, staff = {};
+    roster_(false).forEach(function (a) { if (a.staff) staff[a.id] = true; });
+    var levels = roster.map(function (id) { var v = staff[id] ? 'O' : String(lv[id] || ''); return id + ':' + (/^(V|JV|O)$/.test(v) ? v : 'V'); }).join(',');
+    var excuse = String((t && t.excuse) || '').replace(/\s+/g, ' ').trim().replace(/\.$/, '').slice(0, 120);
     return locked_(function () {
+      ensureCols_('Trips');
       var ex = t.id && find_('Trips', function (r) { return r.TripID === t.id; });
-      if (ex) { update_('Trips', ex._row, { Name: name, Date: date, Roster: roster.join(',') }); return { ok: true, id: ex.TripID }; }
+      if (ex) { update_('Trips', ex._row, { Name: name, Date: date, Roster: roster.join(','), Levels: levels, Excuse: excuse }); return { ok: true, id: ex.TripID }; }
       var id = 'T' + stamp_().replace(/\D/g, '').slice(2, 14);
-      append_('Trips', { TripID: id, Date: date, Name: name, Leg: 'Depart', Roster: roster.join(','), Created: stamp_() });
+      append_('Trips', { TripID: id, Date: date, Name: name, Leg: 'Depart', Roster: roster.join(','), Created: stamp_(), Levels: levels, Excuse: excuse });
       return { ok: true, id: id };
     });
   });
@@ -522,6 +546,7 @@ function coachTrip(pin, tripId) {
     var t = find_('Trips', function (r) { return r.TripID === tripId; });
     if (!t) return { ok: false, message: 'Trip not found.' };
     var by = {}; roster_(false).forEach(function (a) { by[a.id] = a; });
+    var lv = tripLevels_(t);
     var logs = read_('TripLog').rows.filter(function (l) { return l.TripID === tripId; });
     var cell = function (id, leg) {
       var l = logs.filter(function (x) { return x.StudentID === id && x.Leg === leg; })[0];
@@ -529,11 +554,12 @@ function coachTrip(pin, tripId) {
     };
     var riders = tripRoster_(t).map(function (id) {
       var a = by[id];
-      return { id: id, name: a ? a.last + ', ' + a.first : 'ID ' + id, dep: cell(id, 'Depart'), ret: cell(id, 'Return') };
+      return { id: id, name: a ? a.last + ', ' + a.first : 'ID ' + id, level: lv[id] || '', dep: cell(id, 'Depart'), ret: cell(id, 'Return') };
     }).sort(function (x, y) { return x.name < y.name ? -1 : 1; });
     var hc = {};
     logs.forEach(function (l) { if (l.Status === 'HeadCount') hc[l.Leg] = { n: l.Note, time: l.Time }; });
-    return { ok: true, trip: { id: t.TripID, date: t.Date, name: t.Name, leg: t.Leg, roster: tripRoster_(t),
+    return { ok: true, travel: travelInfo_(t),
+             trip: { id: t.TripID, date: t.Date, name: t.Name, leg: t.Leg, roster: tripRoster_(t), levels: lv, excuse: t.Excuse || '',
                                depSet: !!tripAnchor_(t, 'Depart'), depOwn: isFinite(num_(t.DepLat)), retSet: !!tripAnchor_(t, 'Return') },
              riders: riders, headcount: hc, presence: presenceMode_(), code: roomCode_(today_()) };
   });
@@ -604,6 +630,136 @@ function coachTripDelete(pin, tripId) {
       return { ok: true };
     });
   });
+}
+
+/* ---------- travel roster: who is going, the PDF, and the email to the office ---------- */
+
+/** Everyone who can be put on a trip, plus the most recent other trip (for "same as last trip"). */
+function coachTravelPeople(pin, exceptTripId) {
+  return coach_(pin, function () {
+    var trips = read_('Trips').rows.filter(function (t) { return t.TripID !== exceptTripId; })
+      .sort(function (a, b) { return String(a.Created) < String(b.Created) ? 1 : -1; });
+    var people = roster_(true).map(function (a) { return { id: a.id, name: a.last + ', ' + a.first, grade: a.grade, cleared: a.cleared, staff: !!a.staff }; });
+    var p = trips[0];
+    return { ok: true, people: people, prev: p ? { name: p.Name, date: p.Date, roster: tripRoster_(p), levels: tripLevels_(p) } : null };
+  });
+}
+
+/** The real PDF, base64, so the coach can look at it or print it. */
+function coachTravelPdf(pin, tripId) {
+  return coach_(pin, function () {
+    var t = find_('Trips', function (r) { return r.TripID === tripId; });
+    if (!t) return { ok: false, message: 'Trip not found.' };
+    var chk = travelCheck_(t); if (!chk.ok) return chk;
+    var pdf = travelPdf_(t);
+    return { ok: true, filename: pdf.getName(), b64: Utilities.base64Encode(pdf.getBytes()), count: tripRoster_(t).length };
+  });
+}
+
+/** Emails the roster PDF to TRAVEL_EMAIL_TO. Sent from the Google account that owns this Sheet. */
+function coachTravelEmail(pin, tripId) {
+  return coach_(pin, function () {
+    var t = find_('Trips', function (r) { return r.TripID === tripId; });
+    if (!t) return { ok: false, message: 'Trip not found.' };
+    var chk = travelCheck_(t); if (!chk.ok) return chk;
+    var to = emails_(cfg_('TRAVEL_EMAIL_TO')), cc = emails_(cfg_('TRAVEL_EMAIL_CC'));
+    if (!to) return { ok: false, error: 'NO_TO', message: 'No office email address is set. Put it in the Config tab of the Sheet, in the TRAVEL_EMAIL_TO row.' };
+    var key = travelKey_(t);
+    if (t.EmailedAt && t.EmailedKey === key && stampAge_(t.EmailedAt) < 120) return { ok: true, already: true, to: t.EmailedTo, at: t.EmailedAt };   // double tap
+    var title = cfg_('TRAVEL_TITLE'), n = tripRoster_(t).length;
+    var body = [cfg_('TRAVEL_EMAIL_GREETING'), '',
+      'Attached is the ' + title + ' travel roster for ' + t.Name + ' on ' + niceDate_(t.Date) + '.', '',
+      t.Excuse + '.', n + (n === 1 ? ' student is' : ' students are') + ' listed.', '',
+      'Thank you,', cfg_('TRAVEL_EMAIL_SIGNOFF')].join('\n');
+    try {
+      var msg = { to: to, subject: title + ' travel roster - ' + t.Excuse, body: body, name: cfg_('TEAM_NAME'), attachments: [travelPdf_(t)] };
+      if (cc) { msg.cc = cc; msg.replyTo = cc.split(',')[0]; }
+      MailApp.sendEmail(msg);
+    } catch (err) {
+      var m = String((err && err.message) || err);
+      return { ok: false, error: 'MAIL', message: 'The email was NOT sent. ' + (/authori|permission/i.test(m)
+        ? 'Google has not been given permission to send email yet. In the Sheet open Extensions > Apps Script, run "setup" once and approve, then deploy a new version.' : m) };
+    }
+    var at = stamp_();
+    locked_(function () {
+      ensureCols_('Trips');
+      var cur = find_('Trips', function (r) { return r.TripID === tripId; });
+      if (cur) update_('Trips', cur._row, { EmailedAt: at, EmailedTo: to, EmailedKey: key });
+    });
+    return { ok: true, to: to, at: at };
+  });
+}
+
+function travelCheck_(t) {
+  if (!tripRoster_(t).length) return { ok: false, message: 'No one is on this trip yet.' };
+  if (!t.Excuse || /classes?\s*$/i.test(t.Excuse)) return { ok: false, error: 'EXCUSE', message: 'Finish the excused line first: say which classes.' };
+  return { ok: true };
+}
+
+function tripLevels_(t) {
+  var m = {};
+  String(t.Levels || '').split(',').forEach(function (x) { var p = x.split(':'); if (p[0] && p[1]) m[p[0].trim()] = p[1].trim(); });
+  return m;
+}
+
+/** "First M. Last", the way the attendance office lists students. */
+function travelName_(a) {
+  var p = String(a.first || '').split(/\s+/).filter(String);
+  return ((p[0] || '') + (p[1] ? ' ' + p[1].charAt(0).toUpperCase() + '.' : '') + ' ' + a.last).trim();
+}
+
+/** The roster as it prints: one row per person, sorted by last name. */
+function travelRows_(t) {
+  var by = {}; roster_(false).forEach(function (a) { by[a.id] = a; });
+  var lv = tripLevels_(t);
+  return tripRoster_(t).map(function (id) {
+    var a = by[id];
+    return { id: id, name: a ? travelName_(a) : 'ID ' + id, key: a ? (a.last + ' ' + a.first).toLowerCase() : '~' + id, level: lv[id] || '' };
+  }).sort(function (x, y) { return x.key < y.key ? -1 : x.key > y.key ? 1 : 0; });
+}
+
+/** Changes whenever the list, the excused line or the date changes, so the app can say "changed since it was emailed". */
+function travelKey_(t) { return tripRoster_(t).slice().sort().join(',') + '|' + String(t.Excuse || '') + '|' + t.Date; }
+
+function travelInfo_(t) {
+  var rows = travelRows_(t), c = { V: 0, JV: 0, O: 0 };
+  rows.forEach(function (r) { if (c[r.level] != null) c[r.level]++; });
+  return { title: cfg_('TRAVEL_TITLE'), excuse: t.Excuse || '', rows: rows.map(function (r) { return { id: r.id, name: r.name }; }), counts: c,
+           to: emails_(cfg_('TRAVEL_EMAIL_TO')), cc: emails_(cfg_('TRAVEL_EMAIL_CC')),
+           emailedAt: t.EmailedAt || '', emailedTo: t.EmailedTo || '', changed: !!t.EmailedAt && t.EmailedKey !== travelKey_(t) };
+}
+
+/** Plain table markup with inline styles only: this is what Google turns into the PDF. */
+function travelHtml_(t) {
+  var font = 'font-family:Arial,Helvetica,sans-serif;';
+  var band = font + 'background-color:#0d0d0d;color:#e8261c;font-size:14pt;font-weight:bold;text-align:center;padding:30px 8px 8px 8px;border:1px solid #0d0d0d;';
+  var cell = font + 'font-size:13pt;color:#000000;padding:5px 7px;border:1px solid #333333;';
+  var head = cell + 'background-color:#ff0000;';
+  var h = '<html><head><meta charset="utf-8"><title>' + esc_(cfg_('TRAVEL_TITLE')) + '</title></head><body style="margin:0;padding:0;">' +
+    '<table cellspacing="0" cellpadding="0" style="border-collapse:collapse;width:100%;">' +
+    '<tr><td colspan="2" bgcolor="#0d0d0d" style="' + band + '">' + esc_(cfg_('TRAVEL_TITLE')) + '</td></tr>' +
+    '<tr><td colspan="2" bgcolor="#0d0d0d" style="' + band + '">' + esc_(t.Excuse) + '</td></tr>' +
+    '<tr><td bgcolor="#ff0000" width="15%" style="' + head + '">ID</td><td bgcolor="#ff0000" style="' + head + '">Name</td></tr>';
+  travelRows_(t).forEach(function (r) {
+    h += '<tr><td style="' + cell + '">' + esc_(r.id) + '</td><td style="' + cell + '">' + esc_(r.name) + '</td></tr>';
+  });
+  return h + '</table></body></html>';
+}
+
+function travelPdf_(t) {
+  return Utilities.newBlob(travelHtml_(t), 'text/html', 'roster.html').getAs('application/pdf').setName('WP Wrestling Travel Roster ' + t.Date + '.pdf');
+}
+
+function esc_(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function emails_(v) {
+  return String(v || '').split(/[,;\s]+/).filter(function (x) { return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x); }).join(',');
+}
+function niceDate_(ymd) { var p = String(ymd).split('-'); return dowName_(ymd) + ', ' + ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(p[1]) - 1] + ' ' + Number(p[2]); }
+/** Seconds since a stamp_() value. */
+function stampAge_(st) {
+  var f = function (x) { var m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})/.exec(String(x)); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) / 1000 : NaN; };
+  var d = f(stamp_()) - f(st);
+  return isFinite(d) ? d : 1e9;
 }
 
 function clearHeadcount_(tripId, leg) {
@@ -784,11 +940,15 @@ function roster_(activeOnly) {
     __memo.roster = read_('Athletes').rows.filter(function (r) { return String(r.StudentID).trim(); }).map(function (r) {
       var first = String(r.FirstName || '').trim(), last = String(r.LastName || '').trim();
       return { id: String(r.StudentID).trim(), first: first, last: last, name: first + ' ' + last, grade: r.Grade || '',
-               active: !isNo_(r.Active), injured: isYes_(r.Injured), cleared: !isNo_(r.Eligible) && !isYes_(r.Injured) };
+               active: !isNo_(r.Active), injured: isYes_(r.Injured), cleared: !isNo_(r.Eligible) && !isYes_(r.Injured),
+               staff: /manager|assistant|staff/i.test(String(r.Role || '')) };
     }).sort(function (a, b) { return (a.last + ' ' + a.first).toLowerCase() < (b.last + ' ' + b.first).toLowerCase() ? -1 : 1; });
   }
   return activeOnly ? __memo.roster.filter(function (a) { return a.active; }) : __memo.roster;
 }
+
+/** Active wrestlers: the daily list and the reports. Managers and student assistants are travel-only. */
+function wrestlers_() { return roster_(true).filter(function (a) { return !a.staff; }); }
 
 function athlete_(id, includeInactive) {
   id = String(id == null ? '' : id).replace(/\D/g, '');
@@ -921,6 +1081,7 @@ var API_ = {
   coachSetSchool: coachSetSchool, coachTripAnchor: coachTripAnchor, coachSchedule: coachSchedule, coachSetDay: coachSetDay, coachFillWeeks: coachFillWeeks,
   coachAddAthlete: coachAddAthlete, coachSetActive: coachSetActive, coachRoster: coachRoster,
   coachReport: coachReport, coachAthlete: coachAthlete, coachExport: coachExport,
+  coachTravelPeople: coachTravelPeople, coachTravelPdf: coachTravelPdf, coachTravelEmail: coachTravelEmail,
   coachTrips: coachTrips, coachTripSave: coachTripSave, coachTrip: coachTrip, coachTripMark: coachTripMark,
   coachTripLeg: coachTripLeg, coachTripHeadcount: coachTripHeadcount, coachTripDelete: coachTripDelete
 };

@@ -1,6 +1,6 @@
 # West Point Wrestling Check-In
 
-Attendance, weigh-ins and bus checks for the wrestling program. Athletes scan one QR code; coaches use the same site with a PIN.
+Attendance, weigh-ins, travel rosters and bus checks for the wrestling program. Athletes scan one QR code; coaches use the same site with a PIN.
 
 No athlete names, IDs or weights are stored in this repository. All data lives in the coach's Google Sheet.
 
@@ -29,6 +29,15 @@ No athlete names, IDs or weights are stored in this repository. All data lives i
 ## Practice times
 
 Practice alternates weekly between an early slot (4:00) and a late slot (6:00). The `Schedule` tab holds one row per practice day (`Date`, `Start`, `End`, `Note`; `Start` = `OFF` for no practice). Days with no row follow `PRACTICE_DAYS` and `DEFAULT_SLOT` in Config. Coaches set days from More > Practice schedule, including Saturdays and holidays; "Fill ahead" lays out four alternating weeks. Check-in opens 30 minutes before the start, marks Late after 5, and closes 20 minutes after (all in Config).
+
+## Travel rosters
+
+The Travel tab holds one trip per meet. A trip is both the travel roster for the attendance office and the list for the bus check, so the two cannot drift apart.
+
+- **Picking the roster:** each traveler is tagged Varsity, JV or Other. Managers and student assistants are added from the trip form; they are stored in the `Athletes` tab with `Role` = `Manager`, travel as Other, and are left off the daily attendance list and the reports.
+- **The roster PDF:** title (`TRAVEL_TITLE`), the excused line typed on the trip (for example "Excused 12/1 for classes 5-7"), then ID and Name, sorted by last name.
+- **The email:** "Email this roster to the office" sends the PDF to `TRAVEL_EMAIL_TO` from the Google account that owns the Sheet. The address lives only in the Sheet's Config tab, not in this repository. The trip records when it was sent and flags the roster if it changes afterwards.
+- Sending email is a Google permission. After pasting a new `Code.gs`, run `setup` once so Google asks for it, then deploy a new version.
 
 ## How the app knows an athlete is really there
 
