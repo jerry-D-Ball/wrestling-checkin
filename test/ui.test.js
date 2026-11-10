@@ -32,6 +32,7 @@ const {chromium}=require('playwright');const path=require('path');const assert=r
   ok((await txt()).includes('Marco Alvarez'),'confirm name');await shot('01-confirm');
   await p.click('[data-a=idYes]');await p.waitForSelector('.hero.ok');
   ok((await txt()).includes('CHECKED IN')&&(await txt()).includes('3:58 PM'),'green');await shot('02-checked-in');
+  ok(!/cycle/i.test(await p.innerHTML('#app'))&&(await p.evaluate(()=>localStorage.getItem('wp_sid')))==='300100','this team: no cycle box anywhere on the athlete page; saved under the usual key');
   await p.fill('#wpre','152.4');await p.click('[data-a=wtSave][data-kind=pre]');await p.waitForFunction(()=>document.body.innerText.includes('Saved ✓'));
   await p.fill('#wpost','147.2');await p.click('[data-a=wtSave][data-kind=post]');await p.waitForFunction(()=>document.body.innerText.includes('-5.2 lb'));ok(true,'weights');
   await p.reload();await p.waitForSelector('.hero.ok');ok((await p.inputValue('#wpre'))==='152.4','remembers athlete + weights after reload');
@@ -119,6 +120,7 @@ const {chromium}=require('playwright');const path=require('path');const assert=r
   // athlete sees bus on return leg
   // ---- reports
   await p.click('.nav [data-t=reports]');await p.waitForSelector('.rep');await shot('15-report');
+  ok(!/cycle/i.test(await p.innerHTML('#app'))&&(await p.locator('[data-a=cycOpen]').count())===0,'this team: no cycle log in Reports');
   ok((await txt()).includes('Team attendance'),'report');
   await p.click('.rep[data-id="300100"]');await p.waitForSelector('table.t');ok(/weight log/i.test(await txt())&&(await txt()).includes('-5.2'),'athlete detail');await shot('16-athlete');
   await p.click('[data-a=athBack]');await p.waitForSelector('.rep');await p.click('[data-a=export]');await p.waitForSelector('#sheet.open');ok((await p.innerText('#sheet')).includes('18 athletes × 1 practices'),'export');await p.click('#sheet [data-a=close]');

@@ -1,0 +1,1302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>WP Girls Wrestling Check-In</title>
+<meta name="theme-color" content="#111111">
+<meta name="apple-mobile-web-app-title" content="WP Girls">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --ink:#0f1b2d; --ink2:#44536a; --line:#d5dbe5; --bg:#eef1f6; --card:#fff;
+  --brand:#111111; --brand2:#111111; --accent:#c8102e;
+  --ok:#157a3c; --ok-bg:#dff5e6; --late:#8a5300; --late-bg:#ffedc7; --exc:#1e4fa3; --exc-bg:#dfe9fb; --bad:#b3261e; --bad-bg:#fde3e1;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;-webkit-text-size-adjust:100%}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+#app{max-width:600px;margin:0 auto;min-height:100vh;padding-bottom:96px}
+.top{background:var(--brand);color:#fff;padding:14px 16px 12px;position:sticky;top:0;z-index:5;border-bottom:5px solid var(--accent)}
+.top h1{margin:0;font-size:18px;font-weight:700;letter-spacing:.2px}
+.top .sub{font-size:14px;opacity:.85}
+.pad{padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:0 0 14px}
+.card h2{margin:0 0 10px;font-size:16px;text-transform:uppercase;letter-spacing:.6px;color:var(--ink2)}
+.btn{display:block;width:100%;min-height:56px;border:0;border-radius:12px;background:var(--brand2);color:#fff;font-size:19px;font-weight:700;padding:12px 16px}
+.btn:active{filter:brightness(.9)}
+.btn.sec{background:#fff;color:var(--brand2);border:2px solid var(--brand2)}
+.btn.ghost{background:transparent;color:var(--ink2);border:1px solid var(--line);font-weight:600;font-size:16px;min-height:48px}
+.btn.danger{background:#fff;color:var(--bad);border:2px solid var(--bad)}
+.btn.ok{background:var(--ok)}
+.btn[disabled]{opacity:.5}
+.btn + .btn{margin-top:10px}
+.link{background:none;border:0;color:var(--brand2);text-decoration:underline;padding:12px 8px;font-size:15px;min-height:44px}
+.field{display:block;width:100%;min-height:56px;border:2px solid #8793a6;border-radius:12px;padding:10px 14px;font-size:20px;background:#fff}
+.field:focus{outline:3px solid rgba(200,16,46,.4);border-color:var(--brand2)}
+.big-id{font-size:34px;text-align:center;letter-spacing:4px;font-weight:700}
+label.l{display:block;font-weight:600;margin:0 0 6px}
+.hint{color:var(--ink2);font-size:15px;margin:8px 0 0}
+.err{background:var(--bad-bg);color:var(--bad);border-radius:10px;padding:10px 12px;margin:10px 0 0;font-weight:600}
+
+/* athlete hero */
+.hero{border-radius:16px;padding:26px 18px;text-align:center;margin:0 0 14px;border:3px solid transparent}
+.hero .ic{font-size:76px;line-height:1;font-weight:800}
+.hero .t{font-size:30px;font-weight:800;margin:6px 0 2px;letter-spacing:.3px}
+.hero .n{font-size:22px;font-weight:700}
+.hero .d{font-size:17px;margin-top:4px}
+.hero.ok{background:var(--ok);color:#fff}
+.hero.late{background:var(--late-bg);color:#5c3700;border-color:#c98a1b}
+.hero.bad{background:var(--bad);color:#fff}
+.hero.info{background:#fff;color:var(--ink);border-color:var(--line)}
+.spin{width:54px;height:54px;border:6px solid #d9d9d9;border-top-color:var(--accent);border-radius:50%;margin:8px auto;animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:3s}}
+.wrow{display:flex;gap:10px;align-items:flex-end;margin-bottom:12px}
+.wrow > div{flex:1}
+.wrow .btn{width:auto;min-width:96px}
+.saved{color:var(--ok);font-weight:700}
+
+/* coach */
+.datebar{display:flex;align-items:center;gap:8px;margin-top:8px}
+.datebar button{min-width:48px;min-height:44px;border-radius:10px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.12);color:#fff;font-size:20px;font-weight:700}
+.datebar .dt{flex:1;text-align:center;font-size:19px;font-weight:700}
+.datebar .tod{font-size:14px;padding:0 10px}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.tile{background:#fff;border:2px solid var(--line);border-radius:12px;padding:8px 4px;text-align:center;min-height:68px}
+.tile b{display:block;font-size:26px;line-height:1.1}
+.tile span{font-size:13px;color:var(--ink2);font-weight:600}
+.tile.on{border-color:var(--brand2);background:#ececec}
+.tile.t-out b{color:var(--bad)} .tile.t-here b{color:var(--ok)} .tile.t-late b{color:var(--late)} .tile.t-exc b{color:var(--exc)}
+.note{border-radius:10px;padding:10px 12px;margin:0 0 12px;font-size:15px;background:#fff;border:1px solid var(--line)}
+.note.code{background:#fff8d6;border-color:#d9b400;font-size:17px}
+.note.code b{font-size:26px;letter-spacing:3px}
+.rows{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.row{display:flex;align-items:center;gap:10px;width:100%;min-height:62px;padding:8px 12px 8px 10px;border:0;border-bottom:1px solid var(--line);border-left:8px solid #c4ccd9;background:#fff;text-align:left}
+.row:last-child{border-bottom:0}
+.row:active{background:#f0f0f0}
+.row .nm{flex:1;font-weight:700;font-size:18px;min-width:0}
+.row .nm small{display:block;font-weight:500;font-size:13px;color:var(--ink2)}
+.row .nm .warn{color:var(--bad);font-weight:700}
+.pill{flex:none;border-radius:999px;padding:7px 12px;font-size:15px;font-weight:700;white-space:nowrap;border:2px solid transparent}
+.p-none{border-color:#8793a6;border-style:dashed;color:var(--ink2);background:#fff}
+.p-P{background:var(--ok-bg);color:var(--ok)} .p-L{background:var(--late-bg);color:var(--late)}
+.p-E{background:var(--exc-bg);color:var(--exc)} .p-A{background:var(--bad-bg);color:var(--bad)}
+.row.s-P{border-left-color:var(--ok)} .row.s-L{border-left-color:#d08a00} .row.s-E{border-left-color:var(--exc)} .row.s-A{border-left-color:var(--bad)}
+.row.pending{opacity:.6}
+.empty{padding:26px 16px;text-align:center;color:var(--ink2)}
+.sech{font-size:13px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:var(--ink2);margin:16px 4px 6px}
+.wt{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);background:#fff;min-height:62px}
+.wt:last-child{border-bottom:0}
+.wt .nm{flex:1;font-weight:700;min-width:0;font-size:16px}
+.wt .nm small{display:block;font-weight:500;font-size:13px;color:var(--ink2)}
+.wt input{width:74px;min-height:48px;border:2px solid #8793a6;border-radius:10px;text-align:center;font-size:18px;font-weight:700;background:#fff;padding:4px}
+.wt input:focus{outline:3px solid rgba(200,16,46,.4);border-color:var(--brand2)}
+.wt .chg{width:62px;text-align:right;font-weight:800;font-size:15px}
+.wt .chg.flag{color:var(--bad)}
+.wthead{display:flex;gap:8px;padding:6px 10px;font-size:12px;font-weight:800;color:var(--ink2);text-transform:uppercase;letter-spacing:.5px}
+.wthead span:first-child{flex:1} .wthead span{width:74px;text-align:center} .wthead span:last-child{width:62px;text-align:right}
+
+.nav{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:center;z-index:6;padding-bottom:env(safe-area-inset-bottom)}
+.nav div{display:flex;width:100%;max-width:600px}
+.nav button{flex:1;min-height:62px;border:0;background:none;font-size:13px;font-weight:700;color:var(--ink2);border-top:4px solid transparent}
+.nav button i{display:block;font-style:normal;font-size:22px;line-height:1.2}
+.nav button.on{color:var(--brand2);border-top-color:var(--accent)}
+
+.count{border-radius:16px;padding:18px;text-align:center;margin-bottom:12px;border:3px solid var(--bad);background:var(--bad-bg);color:#7c1610}
+.count .n{font-size:54px;font-weight:800;line-height:1}
+.count .n small{font-size:26px}
+.count .m{font-size:17px;font-weight:700;margin-top:6px}
+.count.ready{border-color:#c98a1b;background:var(--late-bg);color:#5c3700}
+.count.go{border-color:var(--ok);background:var(--ok);color:#fff}
+.seg{display:flex;border:2px solid var(--brand2);border-radius:12px;overflow:hidden;margin-bottom:12px}
+.seg button{flex:1;min-height:50px;border:0;background:#fff;color:var(--brand2);font-weight:700;font-size:16px}
+.seg button.on{background:var(--brand2);color:#fff}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.chip{min-height:44px;border-radius:999px;border:2px solid var(--line);background:#fff;padding:6px 14px;font-weight:700;font-size:15px;color:var(--ink2)}
+.chip.on{border-color:var(--brand2);background:var(--brand2);color:#fff}
+.rep{display:flex;align-items:center;gap:8px;width:100%;min-height:60px;padding:8px 12px;border:0;border-bottom:1px solid var(--line);background:#fff;text-align:left}
+.rep:last-child{border-bottom:0}
+.rep .nm{flex:1;min-width:0;font-weight:700;font-size:16px}
+.rep .nm small{display:block;font-weight:600;font-size:13px;color:var(--ink2)}
+.rep .pc{width:58px;text-align:right;font-size:20px;font-weight:800}
+.pc.g{color:var(--ok)} .pc.y{color:var(--late)} .pc.r{color:var(--bad)}
+.marks{display:flex;gap:2px;margin-top:4px;flex-wrap:wrap}
+.marks i{width:13px;height:13px;border-radius:3px;display:block}
+.m-P{background:#2aa35a} .m-L{background:#e0a100} .m-E{background:#6d94dd} .m-A{background:#d6453d}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--ink2);margin:0 4px 10px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+.kv{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+table.t{width:100%;border-collapse:collapse;font-size:15px}
+table.t th{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink2);text-align:left;padding:6px 4px;border-bottom:2px solid var(--line)}
+table.t td{padding:8px 4px;border-bottom:1px solid var(--line)}
+table.t .flag{color:var(--bad);font-weight:800}
+.check{display:flex;align-items:center;gap:12px;min-height:52px;padding:6px 12px;border-bottom:1px solid var(--line);background:#fff;font-weight:600}
+.check input{width:26px;height:26px;flex:none}
+.switch{display:flex;align-items:center;gap:12px;justify-content:space-between;min-height:52px}
+.switch button{flex:none;min-width:92px;min-height:46px;border-radius:999px;border:2px solid #8793a6;background:#fff;font-weight:800;color:var(--ink2)}
+.switch button.on{background:var(--ok);border-color:var(--ok);color:#fff}
+.pick{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line);background:#fff;min-height:62px}
+.pick:last-child{border-bottom:0}
+.pick .nm{flex:1;min-width:0;font-weight:700;font-size:16px}
+.pick .nm small{display:block;font-weight:500;font-size:13px;color:var(--ink2)}
+.lvs{display:flex;gap:6px;flex:none}
+.lv{min-width:48px;min-height:46px;border-radius:10px;border:2px solid #8793a6;background:#fff;font-weight:800;font-size:14px;color:var(--ink2);padding:0 8px}
+.lv.on{background:#111;border-color:#111;color:#fff}
+.tr{border:1px solid #333;font-size:15px;color:#000;background:#fff}
+.trb{background:#0d0d0d;color:#ff4a40;font-weight:800;text-align:center;padding:18px 8px 6px}
+.trh,.trr{display:grid;grid-template-columns:86px 1fr;border-top:1px solid #333}
+.trh{background:#f00;font-weight:600}
+.trh span,.trr span{padding:4px 7px}
+.trh span:first-child,.trr span:first-child{border-right:1px solid #333}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid2 .btn{margin-top:0}
+.fold{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:48px;margin-top:12px;padding:8px 2px 0;border:0;border-top:1px solid var(--line);background:none;font-weight:700;font-size:16px;color:var(--ink2);text-align:left}
+.fold small{font-weight:600;font-size:14px}
+.cyc .check{border:2px solid #8793a6;border-radius:12px;min-height:56px;font-size:18px;font-weight:700;margin-top:6px}
+.plist{margin:0 0 12px;padding:0;list-style:none;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.plist li{padding:10px 12px;border-bottom:1px solid var(--line);font-weight:700}
+.plist li:last-child{border-bottom:0}
+.plist small{display:block;font-weight:500;font-size:13px;color:var(--ink2)}
+
+#sheet{position:fixed;inset:0;background:rgba(10,18,32,.55);display:none;align-items:flex-end;justify-content:center;z-index:20}
+#sheet.open{display:flex}
+#sheet .box{background:#fff;width:100%;max-width:600px;border-radius:18px 18px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));max-height:92vh;overflow:auto}
+#sheet h3{margin:0 0 4px;font-size:22px}
+#sheet p{margin:0 0 12px;color:var(--ink2)}
+#toast{position:fixed;left:12px;right:12px;bottom:78px;display:none;justify-content:center;z-index:30;pointer-events:none}
+#toast.open{display:flex}
+#toast div{pointer-events:auto;background:#101a2b;color:#fff;border-radius:12px;padding:10px 12px 10px 16px;display:flex;align-items:center;gap:12px;max-width:560px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.3)}
+#toast button{min-height:44px;border:2px solid #fff;background:none;color:#fff;border-radius:10px;font-weight:800;padding:4px 14px}
+#toast.bad div{background:var(--bad)}
+
+.poster{background:#fff;min-height:100vh;text-align:center;padding:28px 20px;color:#000}
+.poster h1{font-size:34px;margin:0 0 4px} .poster h2{font-size:54px;margin:8px 0 12px;letter-spacing:1px}
+.poster .qr{width:min(78vw,520px);margin:0 auto} .poster .qr svg{width:100%;height:auto;display:block}
+.poster ol{display:inline-block;text-align:left;font-size:24px;line-height:1.6;margin:14px auto 8px;padding-left:28px}
+.poster .u{font-size:12px;color:#444;word-break:break-all;margin-top:10px}
+.qrbox{background:#fff;padding:8px;border-radius:12px;max-width:420px;margin:0 auto} .qrbox svg{width:100%;height:auto;display:block}
+@media print{.noprint{display:none!important}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="sheet" role="dialog" aria-modal="true"><div class="box" id="sheetbox"></div></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="config.js"></script>
+<script src="../qrcode.js"></script>
+<script>
+(function(){
+'use strict';
+var QS=new URLSearchParams(location.search);
+var BOOT={mode:QS.get('p')==='coach'?'coach':QS.get('p')==='poster'?'poster':'athlete',team:window.WP_TEAM||'Wrestling',url:location.origin+location.pathname,today:ymd(new Date())};
+var $app = document.getElementById('app'), $sheet = document.getElementById('sheet'), $box = document.getElementById('sheetbox'), $toast = document.getElementById('toast');
+
+/* ---------- utilities ---------- */
+function E(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+var KEY=String(window.WP_KEY||'wp_');   // a second team's page sets WP_KEY so its saved ID and coach PIN stay apart from this one's
+function sk(k){return KEY==='wp_'?k:KEY+k.replace(/^wp_/,'');}
+function get(k){k=sk(k);try{return localStorage.getItem(k)||'';}catch(e){return mem[k]||'';}}
+function set(k,v){k=sk(k);mem[k]=v;try{if(v===''||v==null)localStorage.removeItem(k);else localStorage.setItem(k,v);}catch(e){}}
+var mem={};
+function api(fn){
+  var args=[].slice.call(arguments,1);
+  if(!window.WP_API)return Promise.resolve({ok:false,error:'NET',message:'The app is not connected to the Sheet yet. Tell Coach.'});
+  var ctl=typeof AbortController!=='undefined'?new AbortController():null;
+  var t=setTimeout(function(){if(ctl)ctl.abort();},30000);
+  return fetch(window.WP_API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({fn:fn,args:args}),redirect:'follow',signal:ctl?ctl.signal:undefined})
+    .then(function(r){if(!r.ok)throw new Error('http');return r.json();})
+    .then(function(j){clearTimeout(t);return j||{ok:false,error:'NET',message:'No answer from the server. Try again.'};})
+    .catch(function(){clearTimeout(t);return {ok:false,error:'NET',message:'Could not reach the server. Check your signal and try again.'};});
+}
+var DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function pd(s){var p=s.split('-');return new Date(Number(p[0]),Number(p[1])-1,Number(p[2]),12);}
+function ymd(d){return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+function addDays(s,n){var d=pd(s);d.setDate(d.getDate()+n);return ymd(d);}
+function nice(s){if(!s)return'';var d=pd(s);return DOW[d.getDay()]+', '+MON[d.getMonth()]+' '+d.getDate();}
+function t12(s){var m=/^(\d{1,2}):(\d{2})/.exec(s||'');if(!m)return s||'';var h=Number(m[1]);return ((h+11)%12+1)+':'+m[2]+(h<12?' AM':' PM');}
+function weekStart(s){var d=pd(s);var k=(d.getDay()+6)%7;return addDays(s,-k);}
+function monthStart(s){return s.slice(0,8)+'01';}
+function deviceId(){var d=get('wp_dev');if(!d){d='d'+Date.now().toString(36)+Math.random().toString(36).slice(2,10);set('wp_dev',d);}return d;}
+function qrSvg(url){try{var q=qrcode(0,'M');q.addData(url);q.make();return q.createSvgTag({cellSize:8,margin:4,scalable:true});}catch(e){return '';}}
+
+function toast(msg,undo,bad){
+  clearTimeout(toast.t);
+  $toast.className='open'+(bad?' bad':'');
+  $toast.innerHTML='<div><span>'+E(msg)+'</span>'+(undo?'<button data-a="undo">UNDO</button>':'')+'</div>';
+  toast.undo=undo||null;
+  toast.t=setTimeout(function(){$toast.className='';},bad?7000:5000);
+}
+function openSheet(html){$box.innerHTML=html;$sheet.className='open';var f=$box.querySelector('[autofocus]');if(f)setTimeout(function(){f.focus();},50);}
+function closeSheet(){$sheet.className='';$box.innerHTML='';}
+function sheetOpen(){return $sheet.className==='open';}
+
+/* ====================================================================== */
+/*  ATHLETE                                                               */
+/* ====================================================================== */
+var A={sid:get('wp_sid'),me:null,view:'',busy:false,err:'',cand:null,msg:{}};
+
+/* Works with an older Sheet script too: fall back to the practice-only rules when the new fields are missing. */
+function canIn(m){return m.canCheckIn!=null?m.canCheckIn:(!m.status&&m.open);}
+function isIn(m){return m.checkedIn!=null?m.checkedIn:(m.status==='Present'||m.status==='Late');}
+function athleteStart(){
+  if(!A.sid){A.view='id';return renderAthlete();}
+  A.view='home';A.busy=true;A.err='';A.xerr='';A.what='auto';A.cyc=false;renderAthlete();
+  api('athleteState',A.sid,deviceId()).then(function(r){
+    if(!r.ok){
+      A.busy=false;
+      if(r.error==='NOT_FOUND'){set('wp_sid','');A.sid='';A.view='id';A.err=r.message;}else{A.err=r.message;}
+      return renderAthlete();
+    }
+    A.me=r.me;
+    if(!A.me.staff&&canIn(A.me)&&pmode()!=='code')return tryCheckIn('auto');
+    A.busy=false;renderAthlete();
+  });
+}
+function pmode(){return (A.me&&A.me.presence)||'off';}
+/* Ask the phone where it is. Resolves {lat,lng,acc}; rejects with a plain-language reason. */
+function locate(){
+  return new Promise(function(res,rej){
+    if(!navigator.geolocation)return rej('This phone cannot share its location.');
+    navigator.geolocation.getCurrentPosition(function(p){res({lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy});},
+      function(e){rej(e&&e.code===1?'Location is turned off for this page. Allow location, then try again.':'This phone could not find its location.');},
+      {enableHighAccuracy:true,timeout:15000,maximumAge:30000});
+  });
+}
+function tryCheckIn(what){
+  A.what=what||'auto';
+  if(pmode()==='off')return doCheckIn({});
+  A.busy=true;A.busyMsg='Finding your location…';A.err='';A.xerr='';renderAthlete();
+  locate().then(function(pos){doCheckIn(pos);},function(why){
+    var msg=why+(pmode()==='loc'?' Or ask Coach for the backup code.':' Or see Coach to be marked.');
+    A.busy=false;A.busyMsg='';if(A.what==='extra')A.xerr=msg;else A.err=msg;renderAthlete();
+  });
+}
+function doCheckIn(proof){
+  A.busy=true;A.busyMsg='';A.err='';A.xerr='';renderAthlete();
+  api('athleteCheckIn',A.sid,deviceId(),proof,A.what||'auto').then(function(r){
+    A.busy=false;
+    if(r.me)A.me=r.me;
+    if(!r.ok){if(A.what==='extra')A.xerr=r.message;else A.err=r.message;}
+    renderAthlete();
+  });
+}
+function head(sub){return '<div class="top"><h1>'+E(BOOT.team)+'</h1>'+(sub?'<div class="sub">'+sub+'</div>':'')+'</div>';}
+
+function renderAthlete(){
+  var h=head('Athlete check-in')+'<div class="pad">';
+  if(A.view==='id'){
+    h+='<div class="card"><label class="l" for="sid" style="font-size:22px">Enter your Student ID</label>'+
+       '<input id="sid" class="field big-id" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="10" placeholder="000000">'+
+       (A.err?'<div class="err">'+E(A.err)+'</div>':'')+
+       '<p class="hint">You only do this once on this phone.</p></div>'+
+       '<button class="btn" data-a="idNext"'+(A.busy?' disabled':'')+'>'+(A.busy?'Looking you up…':'Continue')+'</button>';
+  } else if(A.view==='confirm'){
+    h+='<div class="hero info"><div class="d">Is this you?</div><div class="t">'+E(A.cand.name)+'</div><div class="d">ID '+E(A.cand.id)+'</div></div>'+
+       '<button class="btn ok" data-a="idYes">Yes, that\'s me</button><button class="btn sec" data-a="idNo">No, go back</button>';
+  } else {
+    h+=heroHtml()+extraHtml()+weightHtml()+busHtml();
+    if(A.me)h+='<div style="text-align:center"><button class="link" data-a="switch">Not '+E(A.me.first)+'? Switch athlete</button></div>';
+  }
+  h+='<div style="text-align:center;margin-top:18px"><button class="link" data-a="coachMode" style="color:#44536a">Coach</button></div></div>';
+  $app.innerHTML=h;
+  var f=document.getElementById('sid')||(pmode()==='code'?document.getElementById('code'):null);
+  if(f&&!A.busy)f.focus();
+}
+function heroHtml(){
+  var m=A.me;
+  if(A.busy&&!m)return '<div class="hero info"><div class="spin"></div><div class="d">One moment…</div></div>';
+  if(A.busy)return '<div class="hero info"><div class="spin"></div><div class="t">'+E(A.busyMsg||'Checking you in…')+'</div><div class="n">'+E(m.name)+'</div></div>';
+  if(!m)return '<div class="hero bad"><div class="ic">!</div><div class="t">NOT CHECKED IN</div><div class="d">'+E(A.err||'Could not load.')+'</div></div><button class="btn" data-a="retry">Try again</button><p class="hint" style="text-align:center;margin-bottom:14px">Still not working? Tell Coach — Coach can mark you here.</p>';
+  var when=nice(m.date);
+  if(m.staff)return '<div class="hero info"><div class="t">Hi '+E(m.first)+'</div><div class="n">Manager / student assistant</div><div class="d">No practice check-in for you. On trip days your bus button shows up here.</div></div>';
+  var can=canIn(m), xs=m.extras||[];
+  var xl=xs.map(function(x){return '<div class="d" style="font-weight:700">✓ '+E(x.name)+' (optional)'+(x.time?' · '+E(t12(x.time)):'')+'</div>';}).join('');
+  if(m.status==='Present')return '<div class="hero ok"><div class="ic">✓</div><div class="t">CHECKED IN</div><div class="n">'+E(m.name)+'</div><div class="d">'+E(t12(m.time))+' · '+E(when)+'</div>'+xl+'</div>';
+  if(m.status==='Late')return '<div class="hero late"><div class="ic">✓</div><div class="t">CHECKED IN — LATE</div><div class="n">'+E(m.name)+'</div><div class="d">'+E(t12(m.time))+' · '+E(when)+'</div>'+xl+'</div>';
+  if(m.status==='Excused'||m.status==='Absent')return '<div class="hero info"><div class="t">Coach marked you '+E(m.status)+'</div><div class="n">'+E(m.name)+'</div><div class="d">'+E(when)+' · If that is wrong, see Coach.</div>'+xl+'</div>';
+  if(A.err&&!(pmode()==='code'&&can))return '<div class="hero bad"><div class="ic">!</div><div class="t">NOT CHECKED IN</div><div class="n">'+E(m.name)+'</div><div class="d">'+E(A.err)+'</div></div>'+(can?'<button class="btn" data-a="retry" style="margin-bottom:14px">Try again</button>':'')+
+    (can&&pmode()==='loc'?'<div class="card"><label class="l" for="code">Backup code from Coach</label><div class="wrow" style="margin:0"><div><input id="code" class="field" inputmode="numeric" pattern="[0-9]*" maxlength="2" autocomplete="off"></div><button class="btn sec" data-a="codeGo">Use code</button></div></div>':'');
+  if(xs.length&&!can)return '<div class="hero ok"><div class="ic">✓</div><div class="t">CHECKED IN</div><div class="n">'+E(m.name)+'</div>'+xl+'<div class="d">'+E(when)+'</div></div>'+
+    (m.practice&&m.closedReason?'<div class="note">'+E(m.closedReason)+(/opens at/.test(m.closedReason)?' Open this page again then to check in for practice.':'')+'</div>':'');
+  if(!can)return '<div class="hero info"><div class="t">'+(m.practice?'Practice today '+E(t12(m.practice.start)):'No practice today')+'</div><div class="n">'+E(m.name)+'</div><div class="d">'+E(m.closedReason)+'</div></div>';
+  if(pmode()!=='code')return '<div class="hero info"><div class="t">Hi '+E(m.first)+'</div><div class="d">'+E(nice(m.date))+'</div></div><button class="btn" data-a="retry" style="margin-bottom:14px">Check in</button>';
+  return '<div class="card"><div style="font-size:22px;font-weight:800;margin-bottom:8px">Hi '+E(m.first)+'</div><label class="l" for="code">Type the 2-digit room code Coach is showing</label>'+
+         '<input id="code" class="field big-id" inputmode="numeric" pattern="[0-9]*" maxlength="2" autocomplete="off">'+(A.err?'<div class="err">'+E(A.err)+'</div>':'')+'</div>'+
+         '<button class="btn" data-a="codeGo" style="margin-bottom:14px">Check in</button>';
+}
+/* The open optional session, when a scan did not already put this athlete in it (practice check-in was open). */
+function extraHtml(){
+  var m=A.me,s=m&&m.session; if(!s||A.busy||m.staff||(!s.offer&&!A.xerr))return '';
+  var box='<input id="xcode" class="field" inputmode="numeric" pattern="[0-9]*" maxlength="2" autocomplete="off">';
+  var h='<div class="card"><h2>'+E(s.name)+' · optional</h2>';
+  if(s.offer)h+=(pmode()==='code'?'<label class="l" for="xcode">Type the 2-digit code Coach is showing</label>'+box+'<div style="height:10px"></div>':'')+
+    '<button class="btn sec" data-a="extraGo">I\'m also here for '+E(s.name)+'</button><p class="hint">Open until '+E(t12(s.until))+'. It does not change your practice attendance.</p>';
+  if(A.xerr)h+='<div class="err">'+E(A.xerr)+'</div>'+(s.offer&&pmode()==='loc'?'<label class="l" for="xcode" style="margin-top:12px">Backup code from Coach</label><div class="wrow" style="margin:0"><div>'+box+'</div><button class="btn sec" data-a="xcodeGo">Use code</button></div>':'');
+  return h+'</div>';
+}
+function weightHtml(){
+  var m=A.me; if(!m||A.busy||m.staff)return '';
+  if(!isIn(m))return '<div class="card"><h2>Weigh-in (pounds)</h2><p class="hint" style="margin:0">Weights open after you check in.</p></div>';
+  function one(kind,label,val){
+    return '<div class="wrow"><div><label class="l" for="w'+kind+'">'+label+'</label><input id="w'+kind+'" class="field" inputmode="decimal" placeholder="lb" value="'+E(val)+'"></div>'+
+           '<button class="btn '+(val?'sec':'')+'" data-a="wtSave" data-kind="'+kind+'">'+(val?'Update':'Save')+'</button></div>';
+  }
+  var h='<div class="card"><h2>Weigh-in (pounds)</h2>'+one('pre','Before practice',m.pre)+one('post','After practice',m.post);
+  if(m.pre&&m.post)h+='<div class="saved">Change today: '+(Number(m.change)>0?'+':'')+E(m.change)+' lb</div>';
+  if(A.msg.wt)h+='<div class="'+(A.msg.wtBad?'err':'saved')+'" style="margin-top:8px">'+E(A.msg.wt)+'</div>';
+  return h+cycleHtml()+'</div>';
+}
+/* Only sent by the Sheet to the phone that checked this athlete in today, and only for a team that uses it.
+   It stays folded until she opens it, because this screen gets shown to coaches and teammates as proof of check-in. */
+function cycleHtml(){
+  var c=A.me&&A.me.cycle; if(!c)return '';
+  return '<button class="fold" data-a="cycFold" aria-expanded="'+(A.cyc?'true':'false')+'" aria-controls="cycp"><span>Cycle log</span><small>Private · '+(A.cyc?'tap to close':'tap to open')+'</small></button>'+
+    '<div class="cyc" id="cycp"'+(A.cyc?'':' hidden')+'><label class="check" for="cyc"><input type="checkbox" id="cyc" data-c="cyc"'+(c.on?' checked':'')+'><span>On cycle today</span></label>'+
+    '<div id="cycst" class="hint">Your choice. It goes only to your coach\'s private log, never to the team list.</div></div>';
+}
+function busHtml(){
+  var m=A.me; if(!m||!m.trip||A.busy)return '';
+  var t=m.trip, leg=t.leg==='Return'?'Ride home':'Leaving';
+  var h='<div class="card"><h2>Bus · '+E(t.name)+' · '+leg+'</h2>';
+  if(t.status==='On')h+='<div class="hero ok" style="margin:0;padding:16px"><div class="t" style="font-size:24px">✓ ON THE BUS</div><div class="d">'+E(t12(t.time))+'</div></div>';
+  else if(t.status==='Released')h+='<div class="hero info" style="margin:0;padding:16px"><div class="d">Coach marked you <b>not riding</b>. If that is wrong, see Coach now.</div></div>';
+  else h+=(pmode()==='code'?'':'<button class="btn" data-a="board">I\'m getting on the bus</button>')+(A.msg.bus?'<div class="err">'+E(A.msg.bus)+'</div>':'')+
+    (pmode()==='code'||(pmode()==='loc'&&A.msg.bus)?'<label class="l" for="bcode" style="margin-top:12px">'+(pmode()==='code'?'Type the 2-digit code Coach is showing':'Backup code from Coach')+'</label><div class="wrow" style="margin:0"><div><input id="bcode" class="field" inputmode="numeric" pattern="[0-9]*" maxlength="2" autocomplete="off"></div><button class="btn sec" data-a="boardCode">Board</button></div>':'');
+  return h+'</div>';
+}
+
+function doBoard(proof){
+  A.busy=true;A.busyMsg='Getting you on the bus…';renderAthlete();
+  api('athleteBoard',A.sid,deviceId(),proof).then(function(r){A.busy=false;A.busyMsg='';if(r.me)A.me=r.me;A.msg=r.ok?{}:{bus:r.message};renderAthlete();});
+}
+
+/* ====================================================================== */
+/*  COACH                                                                 */
+/* ====================================================================== */
+var C={pin:get('wp_pin'),tab:'today',date:'',day:null,filter:'',q:'',sticky:{},pending:0,loading:false,err:'',
+       trips:null,trip:null,form:null,rep:null,range:'week',from:'',to:'',sort:'pct',ath:null,more:'',roster:null};
+
+function coachStart(){
+  if(!C.pin)return renderLogin('');
+  renderLoading('Opening coach screens…');
+  api('coachLogin',C.pin).then(function(r){
+    if(!r.ok){ if(r.error==='PIN'){set('wp_pin','');C.pin='';return renderLogin('');} return renderLoading(r.message,true); }
+    BOOT.today=r.today;C.date=r.today;C.cycle=!!r.cycle;go('today');
+  });
+}
+function renderLoading(msg,retry){$app.innerHTML=head('Coach')+'<div class="pad"><div class="hero info">'+(retry?'':'<div class="spin"></div>')+'<div class="d">'+E(msg)+'</div></div>'+(retry?'<button class="btn" data-a="coachRetry">Try again</button>':'')+'</div>';}
+function renderLogin(err){
+  $app.innerHTML=head('Coach')+'<div class="pad"><div class="card"><label class="l" for="pin" style="font-size:22px">Coach PIN</label>'+
+    '<input id="pin" class="field big-id" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="12">'+(err?'<div class="err">'+E(err)+'</div>':'')+
+    '<p class="hint">The PIN is in the Config tab of the attendance Sheet.</p></div><button class="btn" data-a="pinGo">Open coach screens</button>'+
+    '<div style="text-align:center"><button class="link" data-a="athMode">Back to athlete check-in</button></div></div>';
+  document.getElementById('pin').focus();
+}
+function guard(r){ if(r&&r.error==='PIN'){set('wp_pin','');C.pin='';renderLogin('PIN changed. Enter the new coach PIN.');return false;} return true; }
+function nav(){
+  var tabs=[['today','☑','Today'],['weights','⚖','Weights'],['bus','🚌','Travel'],['reports','▤','Reports'],['more','⋯','More']];
+  return '<nav class="nav"><div>'+tabs.map(function(t){return '<button data-a="tab" data-t="'+t[0]+'" class="'+(C.tab===t[0]?'on':'')+'"'+(C.tab===t[0]?' aria-current="page"':'')+'><i aria-hidden="true">'+t[1]+'</i>'+t[2]+'</button>';}).join('')+'</div></nav>';
+}
+function go(tab){
+  C.tab=tab;C.err='';C.sticky={};C.ath=null;C.sess=null;C.cyc=null;clearTimeout(toast.t);$toast.className='';
+  if(tab==='today'||tab==='weights'){loadDay(true);}
+  else if(tab==='bus'){C.trip=null;C.form=null;if(C.date!==BOOT.today){C.date=BOOT.today;C.day=null;C.filter='';}loadTrips();if(!C.day)loadDay(false,true);}
+  else if(tab==='reports'){setRange(C.range);}
+  else {C.more='';if(C.date!==BOOT.today){C.date=BOOT.today;C.day=null;C.filter='';}renderMore();if(!C.day)loadDay(false,true);}
+  window.scrollTo(0,0);
+}
+function loadDay(show,quiet){
+  if(show){C.loading=true;renderDay();}
+  return api('coachDay',C.pin,C.date).then(function(r){
+    C.loading=false;
+    if(!guard(r))return;
+    if(!r.ok){C.err=r.message;if(!quiet)renderDay();return;}
+    if(C.pending>0)return;
+    C.err='';C.day=r;
+    if(!C.filter)C.filter=r.isToday?'out':'all';
+    if(!quiet&&(C.tab==='today'||C.tab==='weights'))renderDay(true);
+    if(C.tab==='more'&&!C.more)renderMore();
+  });
+}
+function K(s){return s==='Present'?'P':s==='Late'?'L':s==='Excused'?'E':s==='Absent'?'A':'';}
+function counts(){
+  var c={here:0,late:0,exc:0,out:0};
+  (C.day?C.day.athletes:[]).forEach(function(a){
+    if(a.status==='Present'||a.status==='Late')c.here++; if(a.status==='Late')c.late++;
+    if(a.status==='Excused')c.exc++; if(!a.status||a.status==='Absent')c.out++;
+  });
+  return c;
+}
+function dateBar(){
+  var d=C.day, isT=C.date===BOOT.today;
+  return '<div class="datebar"><button data-a="day" data-n="-1" aria-label="Previous day">‹</button><div class="dt">'+E(nice(C.date))+(isT?' · Today':'')+'</div>'+
+    (isT?'':'<button class="tod" data-a="dayToday">Today</button>')+'<button data-a="day" data-n="1" aria-label="Next day"'+(isT?' disabled style="opacity:.35"':'')+'>›</button></div>';
+}
+function renderDay(keep){
+  if(C.tab==='weights')return renderWeights(keep);
+  if(C.sess)return renderSess(keep);
+  var d=C.day, y=keep?window.scrollY:0;
+  var h='<div class="top"><h1>'+E(BOOT.team)+' · Attendance</h1>'+dateBar()+'</div><div class="pad">';
+  if(C.err)h+='<div class="err" style="margin:0 0 12px">'+E(C.err)+' <button class="link" data-a="reload">Reload</button></div>';
+  if(!d){h+='<div class="hero info"><div class="spin"></div><div class="d">Loading roster…</div></div></div>'+nav();$app.innerHTML=h;return;}
+  var c=counts();
+  h+='<div class="tiles">'+
+     tile('out',c.out,'Not here')+tile('here',c.here,'Here')+tile('late',c.late,'Late')+tile('exc',c.exc,'Excused')+'</div>';
+  if(d.isToday&&d.presence==='code')h+='<div class="note code">Room code today: <b>'+E(d.code)+'</b> — say it out loud or write it on the board.</div>';
+  if(d.isToday&&d.presence==='loc')h+='<div class="note code">Backup code today: <b>'+E(d.code)+'</b> — only for an athlete whose phone cannot get its location.</div>';
+  if(d.isToday&&(d.presence==='loc'||d.presence==='loconly')&&!d.schoolSet)h+='<div class="err" style="margin:0 0 12px">The school location is not set, so phones cannot be checked. Go to More and set it while you are in the wrestling room.</div>';
+  h+='<button class="note" data-a="more" data-m="sched" style="display:flex;width:100%;align-items:center;gap:10px;text-align:left;cursor:pointer;min-height:52px"><span style="flex:1">'+(d.practice?'<b>Practice '+E(t12(d.practice.start))+'–'+E(t12(d.practice.end))+'</b>'+(d.practice.note?' · '+E(d.practice.note):''):'<b>No practice scheduled</b> for '+E(nice(C.date)))+'</span><span class="pill p-none" style="border-style:solid">'+(d.practice?'Change':'Set / open')+'</span></button>';
+  (d.sessions||[]).forEach(function(x){
+    h+='<button class="note" data-a="sessOpen" data-id="'+E(x.id)+'" style="display:flex;width:100%;align-items:center;gap:10px;text-align:left;cursor:pointer;min-height:52px"><span style="flex:1">'+
+      (x.open?'<b style="color:#157a3c">● '+E(x.name)+'</b> · optional · open until '+E(t12(x.end)):'<b>'+E(x.name)+'</b> · optional'+(x.end?' · ended '+E(t12(x.end)):''))+'</span><span class="pill '+(x.count?'p-P':'p-none')+'" style="border-style:solid">'+x.count+' in</span></button>';
+  });
+  if(d.sessions&&!d.sessions.some(function(x){return x.open;}))h+='<button class="btn ghost" data-a="sessNew" style="margin:0 0 12px">'+(d.isToday?'+ Optional session (weight room, recovery…)':'+ Record an optional session for this day')+'</button>';
+  if(d.isToday)h+='<div class="note">'+(d.open?'<b style="color:#157a3c">● Athlete check-in is open.</b> Tap a name to mark someone yourself.':'<b>Athlete check-in is closed.</b> '+E(d.closedReason)+' You can still tap names.')+'</div>';
+  h+='<input class="field" id="q" data-i="search" placeholder="Search name" value="'+E(C.q)+'" autocomplete="off" style="margin-bottom:12px;min-height:50px;font-size:18px">';
+  h+='<div id="list"></div><div style="text-align:center"><button class="link" data-a="filterAll">'+(C.filter==='all'?'':'Show everyone')+'</button></div></div>'+nav();
+  $app.innerHTML=h;renderList();
+  if(keep)window.scrollTo(0,y);
+}
+function tile(k,n,label){return '<button class="tile t-'+k+(C.filter===k?' on':'')+'" data-a="filter" data-f="'+k+'" aria-pressed="'+(C.filter===k)+'"><b>'+n+'</b><span>'+label+'</span></button>';}
+function inFilter(a){
+  if(C.sticky[a.id])return true;
+  if(C.filter==='out')return !a.status||a.status==='Absent';
+  if(C.filter==='here')return a.status==='Present'||a.status==='Late';
+  if(C.filter==='late')return a.status==='Late';
+  if(C.filter==='exc')return a.status==='Excused';
+  return true;
+}
+function tags(a){return 'Gr '+E(a.grade||'?')+(a.cleared?'':' · <span class="warn">Not cleared</span>')+(a.method==='Self-Code'?' · used backup code':'')+(a.x&&a.x.length?' · + '+E(a.x.join(', ')):'')+(a.note?' · '+E(a.note):'');}
+function pill(a){
+  var k=K(a.status);
+  if(!k)return '<span class="pill p-none">Tap = here</span>';
+  var txt={P:'✓ Here',L:'◷ Late',E:'E Excused',A:'✕ Absent'}[k];
+  return '<span class="pill p-'+k+'">'+txt+(a.time&&(k==='P'||k==='L')?' '+E(t12(a.time)):'')+'</span>';
+}
+function renderList(){
+  var el=document.getElementById('list'); if(!el||!C.day)return;
+  var q=C.q.trim().toLowerCase();
+  var list=C.day.athletes.filter(function(a){return q?a.name.toLowerCase().indexOf(q)>=0:inFilter(a);});
+  if(!list.length){
+    var msg=q?'No one matches "'+E(C.q)+'".':C.filter==='out'?'Everyone is accounted for. ✓':'No one in this group yet.';
+    el.innerHTML='<div class="rows"><div class="empty">'+msg+'</div></div>';return;
+  }
+  el.innerHTML='<div class="rows">'+list.map(function(a){
+    return '<button class="row s-'+K(a.status)+(a._p?' pending':'')+'" data-a="tapAth" data-id="'+E(a.id)+'"><span class="nm">'+E(a.name)+'<small>'+tags(a)+'</small></span>'+pill(a)+'</button>';
+  }).join('')+'</div>';
+}
+function findA(id){return C.day.athletes.filter(function(a){return a.id===id;})[0];}
+function mark(id,status,note,silent){
+  var a=findA(id); if(!a)return;
+  var prev={status:a.status,time:a.time,note:a.note};
+  a.status=status; if(note!=null)a.note=note; a._p=true; C.sticky[id]=true; C.pending++;
+  renderDay(true);
+  api('coachMark',C.pin,C.date,id,status,note==null?null:note).then(function(r){
+    C.pending--; a._p=false;
+    if(!guard(r))return;
+    if(!r.ok){a.status=prev.status;a.time=prev.time;a.note=prev.note;renderDay(true);return toast('NOT SAVED: '+r.message,null,true);}
+    renderDay(true);
+    if(!silent)toast(a.name+' — '+(status?({Present:'here',Late:'late',Excused:'excused',Absent:'absent'}[status]):'mark cleared'),function(){mark(id,prev.status,prev.note,true);});
+    if(C.pending===0)loadDay(false);
+  });
+}
+function athSheet(id){
+  var a=findA(id);
+  openSheet('<h3>'+E(a.name)+'</h3><p>'+tags(a)+' · '+E(nice(C.date))+'</p>'+
+    '<div class="grid2"><button class="btn ok" data-a="setSt" data-id="'+E(id)+'" data-s="Present">✓ Here</button><button class="btn" style="background:#b56f00" data-a="setSt" data-id="'+E(id)+'" data-s="Late">◷ Late</button>'+
+    '<button class="btn" style="background:#1e4fa3;margin-top:0" data-a="setSt" data-id="'+E(id)+'" data-s="Excused">Excused</button><button class="btn" style="background:#b3261e;margin-top:0" data-a="setSt" data-id="'+E(id)+'" data-s="Absent">✕ Absent</button></div>'+
+    '<label class="l" for="note" style="margin-top:14px">Note (optional)</label><input id="note" class="field" maxlength="120" placeholder="doctor, tutoring, injury…" value="'+E(a.note)+'" style="font-size:17px;min-height:50px">'+
+    '<div style="margin-top:14px">'+(a.status?'<button class="btn ghost" data-a="setSt" data-id="'+E(id)+'" data-s="">Clear today\'s mark</button>':'')+
+    '<button class="btn ghost" data-a="openAth" data-id="'+E(id)+'">Attendance & weight history</button><button class="btn ghost" data-a="close">Cancel</button></div>');
+}
+
+/* ---------- optional sessions ---------- */
+function openSess(id){C.sess={id:id};C.sq='';C.sonly=false;renderSess();window.scrollTo(0,0);loadSess();}
+function loadSess(){
+  var id=C.sess&&C.sess.id; if(!id)return;
+  api('coachSession',C.pin,id).then(function(r){
+    if(!guard(r)||!C.sess||C.sess.id!==id||C.pending>0)return;
+    if(!r.ok){C.sess=null;toast(needsScript(r),null,true);return loadDay(true);}
+    var had=!!C.sess.data; C.sess={id:id,data:r};
+    if(sheetOpen())return;
+    if(had&&typing())renderSessList(); else renderSess(had);
+  });
+}
+function renderSess(keep){
+  var S=C.sess, y=keep?window.scrollY:0;
+  if(!S.data){$app.innerHTML='<div class="top"><h1>Optional session</h1></div><div class="pad"><div class="hero info"><div class="spin"></div></div></div>'+nav();return;}
+  var x=S.data.session;
+  var h='<div class="top"><h1>'+E(x.name)+' · optional</h1><div class="sub">'+E(nice(x.date))+(x.open?' · open until '+E(t12(x.end)):x.end?' · ended '+E(t12(x.end)):' · entered by hand')+'</div></div><div class="pad">';
+  h+='<div class="note">'+(x.open?'<b style="color:#157a3c">● Open now.</b> Athletes scan the same QR code. ':'')+'Tap a name to add someone. This never counts for or against practice attendance.</div>';
+  h+='<div class="chips"><button class="chip'+(C.sonly?'':' on')+'" data-a="sessFilter" data-f="all" aria-pressed="'+!C.sonly+'">Everyone</button><button class="chip'+(C.sonly?' on':'')+'" data-a="sessFilter" data-f="in" id="sin" aria-pressed="'+!!C.sonly+'">In · '+x.count+'</button></div>';
+  h+='<input class="field" id="sq" data-i="ssearch" placeholder="Search name" value="'+E(C.sq||'')+'" autocomplete="off" style="margin-bottom:12px;min-height:50px;font-size:18px"><div id="slist"></div>';
+  h+='<div style="margin-top:16px">'+(x.open?'<button class="btn sec" data-a="sessClose">Close the session now</button>':'')+'<button class="btn ghost" data-a="sessBack">‹ Back to attendance</button><button class="btn ghost" data-a="sessDelAsk" style="color:#b3261e">Delete this session</button></div>';
+  $app.innerHTML=h+'</div>'+nav(); renderSessList(); if(keep)window.scrollTo(0,y);
+}
+function renderSessList(){
+  var el=document.getElementById('slist'); if(!el||!C.sess||!C.sess.data)return;
+  var q=(C.sq||'').trim().toLowerCase(), all=C.sess.data.athletes;
+  var c=document.getElementById('sin'); if(c)c.textContent='In · '+all.filter(function(a){return a['in'];}).length;
+  var list=all.filter(function(a){return q?a.name.toLowerCase().indexOf(q)>=0:(!C.sonly||a['in']||a._s);});
+  el.innerHTML=list.length?'<div class="rows">'+list.map(function(a){
+    var how=a.method==='Coach'?'coach':a.method==='Self-Code'?'code':a.method?'scan':'';
+    return '<button class="row '+(a['in']?'s-P':'')+(a._p?' pending':'')+'" data-a="sessTap" data-id="'+E(a.id)+'"><span class="nm">'+E(a.name)+'<small>Gr '+E(a.grade||'?')+'</small></span>'+
+      (a['in']?'<span class="pill p-P">✓ In'+(a.time?' '+E(t12(a.time)):'')+(how?' · '+how:'')+'</span>':'<span class="pill p-none">Tap = in</span>')+'</button>';}).join('')+'</div>'
+    :'<div class="rows"><div class="empty">'+(q?'No one matches "'+E(C.sq)+'".':'No one is in this session yet.')+'</div></div>';
+}
+function sessMark(id,on){
+  var S=C.sess,a=S.data.athletes.filter(function(x){return x.id===id;})[0]; if(!a||a._p)return;
+  var prev={i:a['in'],t:a.time,m:a.method};
+  a['in']=on;a.time=on&&S.data.session.date===BOOT.today?nowHM():'';a.method=on?'Coach':'';a._p=true;a._s=true;C.pending++;renderSessList();
+  api('coachSessionMark',C.pin,S.id,id,on).then(function(r){
+    C.pending--;a._p=false;
+    if(!guard(r))return;
+    if(!r.ok){a['in']=prev.i;a.time=prev.t;a.method=prev.m;renderSessList();return toast('NOT SAVED: '+r.message,null,true);}
+    renderSessList();toast(a.name+(on?' — in':' — taken out'));
+  });
+}
+
+/* ---------- weights ---------- */
+function renderWeights(keep){
+  var d=C.day, y=keep?window.scrollY:0;
+  var h='<div class="top"><h1>'+E(BOOT.team)+' · Weights</h1>'+dateBar()+'</div><div class="pad">';
+  if(!d){h+='<div class="hero info"><div class="spin"></div><div class="d">Loading…</div></div></div>'+nav();$app.innerHTML=h;return;}
+  var here=d.athletes.filter(function(a){return a.status==='Present'||a.status==='Late'||a.pre||a.post||(a.x&&a.x.length);});
+  var rest=d.athletes.filter(function(a){return here.indexOf(a)<0;});
+  var done=here.filter(function(a){return a.pre&&a.post;}).length;
+  h+='<div class="note">Type a weight and move on — it saves by itself. Athletes can also enter their own from the QR code. <b>'+done+' of '+here.length+'</b> have both weights.</div>';
+  function rows(list){return '<div class="wthead"><span>Athlete</span><span>Before</span><span>After</span><span>Change</span></div><div class="rows">'+list.map(function(a){
+    var flag=a.pct!==''&&Number(a.pct)<=-d.flagPct;
+    return '<div class="wt"><span class="nm">'+E(a.name)+(a.last?'<small>last '+E(a.last)+' lb</small>':'')+'</span>'+
+      '<input inputmode="decimal" aria-label="Before practice weight for '+E(a.name)+'" data-c="wt" data-id="'+E(a.id)+'" data-kind="pre" value="'+E(a.pre)+'">'+
+      '<input inputmode="decimal" aria-label="After practice weight for '+E(a.name)+'" data-c="wt" data-id="'+E(a.id)+'" data-kind="post" value="'+E(a.post)+'">'+
+      '<span class="chg'+(flag?' flag':'')+'" id="chg'+E(a.id)+'">'+chgTxt(a,flag)+'</span></div>';}).join('')+'</div>';}
+  h+=here.length?rows(here):'<div class="rows"><div class="empty">No one is checked in for '+E(nice(C.date))+' yet.</div></div>';
+  if(rest.length)h+='<div class="sech">Not checked in ('+rest.length+')</div>'+(C.showRest?rows(rest):'<button class="btn ghost" data-a="showRest">Show them</button>');
+  h+='</div>'+nav();
+  $app.innerHTML=h; if(keep)window.scrollTo(0,y);
+}
+function chgTxt(a,flag){ if(a.chg==='')return ''; return (Number(a.chg)>0?'+':'')+E(a.chg)+(flag?'<br>'+E(a.pct)+'%':''); }
+function saveWt(el,force){
+  var id=el.getAttribute('data-id'), kind=el.getAttribute('data-kind'), a=findA(id), v=el.value.trim().replace(',','.');
+  if(!a||v===String(a[kind]||''))return;
+  if(v!==''){
+    var n=Number(v);
+    if(!isFinite(n)||n<70||n>450){el.value=a[kind]||'';return toast('Not saved: enter pounds between 70 and 450.',null,true);}
+    var ref=Number(kind==='post'&&a.pre?a.pre:a.last);
+    if(!force&&ref&&Math.abs(n-ref)/ref>0.06){
+      C.wtEl=el;
+      return openSheet('<h3>Check that number</h3><p><b>'+E(v)+' lb</b> for '+E(a.name)+' is '+Math.abs(Math.round((n-ref)*10)/10)+' lb different from '+(kind==='post'&&a.pre?'the before-practice weight':'the last weigh-in')+' ('+E(ref)+' lb).</p>'+
+        '<button class="btn" data-a="wtYes">It\'s right — save '+E(v)+'</button><button class="btn sec" data-a="wtNo">Fix it</button>');
+    }
+  }
+  C.pending++; el.style.opacity=.5;
+  api('coachWeight',C.pin,C.date,id,kind,v).then(function(r){
+    C.pending--; el.style.opacity=1;
+    if(!guard(r))return;
+    if(!r.ok){el.value=a[kind]||'';return toast('NOT SAVED: '+r.message,null,true);}
+    a.pre=r.pre;a.post=r.post;a.chg=r.chg;a.pct=r.pct;el.value=a[kind];
+    var c=document.getElementById('chg'+id), flag=a.pct!==''&&Number(a.pct)<=-C.day.flagPct;
+    if(c){c.className='chg'+(flag?' flag':'');c.innerHTML=chgTxt(a,flag);}
+    el.style.borderColor='#157a3c';
+  });
+}
+
+/* ---------- bus ---------- */
+function loadTrips(){
+  renderBus();
+  api('coachTrips',C.pin).then(function(r){ if(!guard(r))return; if(!r.ok){C.err=r.message;}else{C.trips=r.trips;BOOT.today=r.today;} if(C.tab==='bus'&&!C.trip&&!C.form)renderBus(); });
+}
+function renderBus(){
+  if(C.form)return renderTripForm();
+  if(C.trip)return renderTrip();
+  var h='<div class="top"><h1>'+E(BOOT.team)+' · Travel</h1><div class="sub">Travel roster, office email and bus check.</div></div><div class="pad">';
+  h+='<button class="btn" data-a="tripNew" style="margin-bottom:14px">+ New trip</button>';
+  if(C.err)h+='<div class="err">'+E(C.err)+'</div>';
+  if(!C.trips)h+='<div class="hero info"><div class="spin"></div></div>';
+  else if(!C.trips.length)h+='<div class="rows"><div class="empty">No trips yet. Make one to pick the travel roster, email it to the office, and check the bus.</div></div>';
+  else h+='<div class="rows">'+C.trips.map(function(t){
+      var st=t.leg==='Done'?'Finished':(t.leg==='Return'?'Ride home':'Leaving')+' · '+t.accounted+' of '+t.total;
+      return '<button class="row'+(t.date===BOOT.today&&t.leg!=='Done'?' s-L':'')+'" data-a="tripOpen" data-id="'+E(t.id)+'"><span class="nm">'+E(t.name)+'<small>'+E(nice(t.date))+(t.date===BOOT.today?' · TODAY':'')+(t.emailed==='yes'?' · roster emailed ✓':t.emailed==='changed'?' · <span class="warn">roster changed, send again</span>':'')+'</small></span><span class="pill p-none" style="border-style:solid">'+E(st)+'</span></button>';
+    }).join('')+'</div>';
+  $app.innerHTML=h+'</div>'+nav();
+}
+function loadTrip(id,quiet){
+  if(!quiet){C.trip={loading:true,id:id};renderTrip();}
+  api('coachTrip',C.pin,id).then(function(r){
+    if(!guard(r))return;
+    if(C.pending>0||!C.trip||C.trip.id!==id||C.tab!=='bus')return;
+    if(!r.ok){C.trip=null;C.err=r.message;return renderBus();}
+    var view=C.trip.view||(r.trip.leg==='Return'||r.trip.leg==='Done'?'Return':'Depart');
+    C.trip={id:id,data:r,view:view};
+    if(!sheetOpen())renderTrip(true);
+  });
+}
+function legKey(){return C.trip.view==='Return'?'ret':'dep';}
+function renderTrip(keep){
+  var T=C.trip, y=keep?window.scrollY:0;
+  if(T.loading||!T.data){$app.innerHTML='<div class="top"><h1>Bus check</h1></div><div class="pad"><div class="hero info"><div class="spin"></div></div></div>'+nav();return;}
+  var d=T.data, k=legKey(), leg=T.view;
+  var on=0,rel=0,miss=[];
+  d.riders.forEach(function(r){var s=r[k].status; if(s==='On')on++; else if(s==='Released')rel++; else miss.push(r.name.split(',')[0]);});
+  var hc=d.headcount[leg], total=d.riders.length;
+  var h='<div class="top"><h1>'+E(d.trip.name)+'</h1><div class="sub">'+E(nice(d.trip.date))+' · '+total+' traveling</div></div><div class="pad">';
+  var tv=d.travel;
+  if(tv){
+    var st=tv.changed?'<b style="color:#b3261e">Changed since it was emailed — send it again</b>':tv.emailedAt?'<b style="color:#157a3c">✓ Emailed to the office '+E(niceStamp(tv.emailedAt))+'</b>':'Not emailed to the office yet';
+    h+='<button class="note" data-a="rosterOpen" style="display:flex;width:100%;align-items:center;gap:10px;text-align:left;cursor:pointer;min-height:56px"><span style="flex:1"><b>Travel roster</b> · V '+tv.counts.V+' · JV '+tv.counts.JV+' · Other '+tv.counts.O+'<br>'+st+'</span><span class="pill p-none" style="border-style:solid">Roster / email</span></button>';
+  }
+  h+='<div class="seg" role="tablist"><button data-a="tripView" data-v="Depart" class="'+(leg==='Depart'?'on':'')+'">① Leaving school</button><button data-a="tripView" data-v="Return" class="'+(leg==='Return'?'on':'')+'">② Coming home</button></div>';
+  if(d.trip.leg!==leg&&d.trip.leg!=='Done')h+='<div class="note">Athletes scanning the QR code are boarding <b>'+(d.trip.leg==='Return'?'the ride home':'the trip out')+'</b>. <button class="link" data-a="tripLeg" data-v="'+leg+'">Switch scanning to this leg</button></div>';
+  if(d.presence==='loc'||d.presence==='loconly'){
+    var set=leg==='Return'?d.trip.retSet:d.trip.depSet, own=leg==='Return'||d.trip.depOwn;
+    h+='<div class="note">'+(set?'<b style="color:#157a3c">● Athletes can scan to board</b> when their phone is at '+(own?'the spot you set':'the school')+'.':'<b>Scanning is off for this leg</b> until you set where the bus is.'+(d.presence==='loc'?' Athletes with the backup code can still board.':''))+
+       ' <button class="link" data-a="tripAnchor">'+(set&&own?'Reset to where I am':'The bus is here — use my location')+'</button>'+(d.presence==='loc'?'<br>Backup code: <b>'+E(d.code)+'</b>':'')+'</div>';
+  } else if(d.presence==='code'){
+    h+='<div class="note code">Code to board: <b>'+E(d.code)+'</b></div>';
+  }
+  if(miss.length){
+    h+='<div class="count"><div class="n">'+on+' <small>of '+(total-rel)+' on the bus</small></div><div class="m">'+miss.length+' MISSING'+(miss.length<=8?': '+E(miss.join(', ')):'')+'</div></div>';
+  } else if(!hc||Number(hc.n)!==on){
+    h+='<div class="count ready"><div class="n">'+on+' <small>on the bus</small></div><div class="m">Everyone is marked'+(rel?' ('+rel+' not riding)':'')+'. Now walk the bus and count heads. You should count '+on+'.</div></div>'+
+       '<button class="btn ok" data-a="headcount" data-n="'+on+'" style="margin-bottom:12px">I counted '+on+' — confirm</button>';
+  } else {
+    h+='<div class="count go"><div class="n">✓ '+on+'</div><div class="m">HEAD COUNT CONFIRMED '+E(t12(hc.time))+' · CLEAR TO GO'+(rel?' · '+rel+' not riding':'')+'</div></div>';
+    if(leg==='Depart'&&d.trip.leg==='Depart')h+='<button class="btn sec" data-a="tripLeg" data-v="Return" style="margin-bottom:12px">Set up the ride home</button>';
+    if(leg==='Return'&&d.trip.leg!=='Done')h+='<button class="btn sec" data-a="tripLeg" data-v="Done" style="margin-bottom:12px">Everyone is home — finish trip</button>';
+  }
+  h+='<div class="rows">'+d.riders.map(function(r){
+    var s=r[k], cls=s.status==='On'?'s-P':s.status==='Released'?'s-E':'s-A';
+    var p=s.status==='On'?'<span class="pill p-P">✓ On '+E(t12(s.time))+(s.code?' · code':s.self?' · scan':'')+'</span>':s.status==='Released'?'<span class="pill p-E">Not riding</span>':'<span class="pill p-A">NOT ON · tap</span>';
+    var sub=[{V:'Varsity',JV:'JV',O:'Other'}[r.level]||'',s.status==='Released'&&s.note?E(s.note):(leg==='Return'&&r.dep.status!=='On'?'Did not ride out':'')].filter(String).join(' · ');
+    return '<button class="row '+cls+(r._p?' pending':'')+'" data-a="tapRider" data-id="'+E(r.id)+'"><span class="nm">'+E(r.name)+(sub?'<small>'+sub+'</small>':'')+'</span>'+p+'</button>';
+  }).join('')+'</div>';
+  h+='<div style="margin-top:16px"><button class="btn ghost" data-a="tripBack">‹ All trips</button><button class="btn ghost" data-a="tripEdit">Change the roster or excused line</button><button class="btn ghost" data-a="tripDelAsk" style="color:#b3261e">Delete this trip</button></div>';
+  $app.innerHTML=h+'</div>'+nav(); if(keep)window.scrollTo(0,y);
+}
+function riderMark(id,status,note){
+  var T=C.trip, r=T.data.riders.filter(function(x){return x.id===id;})[0], k=legKey(), prev=r[k];
+  r[k]={status:status,time:status?nowHM():'',note:note||''}; r._p=true; delete T.data.headcount[T.view]; C.pending++;
+  renderTrip(true);
+  api('coachTripMark',C.pin,T.id,id,T.view,status,note||'').then(function(res){
+    C.pending--; r._p=false;
+    if(!guard(res))return;
+    if(!res.ok){r[k]=prev;renderTrip(true);return toast('NOT SAVED: '+res.message,null,true);}
+    renderTrip(true);
+    if(C.pending===0)loadTrip(T.id,true);
+  });
+}
+function setTripAnchor(leg,quiet){
+  var id=C.trip.id; if(!quiet)toast('Finding your location…');
+  locate().then(function(p){
+    api('coachTripAnchor',C.pin,id,leg,p.lat,p.lng).then(function(r){ if(!guard(r))return; if(!r.ok)return toast('NOT SAVED: '+r.message,null,true); toast('Bus location set. Athletes can scan to board here.'); if(C.trip&&C.trip.id===id)loadTrip(id,true); });
+  },function(why){toast((quiet?'Bus location not set: ':'')+why,null,true);});
+}
+function nowHM(){var d=new Date();return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);}
+function riderSheet(id){
+  var r=C.trip.data.riders.filter(function(x){return x.id===id;})[0], s=r[legKey()];
+  openSheet('<h3>'+E(r.name)+'</h3><p>'+(C.trip.view==='Return'?'Coming home':'Leaving school')+'</p>'+
+    '<button class="btn ok" data-a="rider" data-id="'+E(id)+'" data-s="On">✓ On the bus</button>'+
+    '<label class="l" for="rnote" style="margin-top:14px">Not riding? Say who they left with</label><input id="rnote" class="field" maxlength="120" placeholder="Parent pickup — Mom" value="'+E(s.note||'')+'" style="font-size:17px;min-height:50px">'+
+    '<button class="btn" style="background:#1e4fa3;margin-top:10px" data-a="rider" data-id="'+E(id)+'" data-s="Released">Not riding this bus</button>'+
+    '<div style="margin-top:14px">'+(s.status?'<button class="btn danger" data-a="rider" data-id="'+E(id)+'" data-s="">Take off — NOT on the bus</button>':'')+'<button class="btn ghost" data-a="close">Cancel</button></div>');
+}
+function people(){return C.people||(C.day?C.day.athletes.map(function(a){return {id:a.id,name:a.name,grade:a.grade,cleared:a.cleared,staff:false};}):null);}
+function loadPeople(){
+  var had=!!people();
+  api('coachTravelPeople',C.pin,(C.form&&C.form.id)||'').then(function(r){
+    if(!guard(r)||!C.form)return;
+    if(r.ok){C.people=r.people;C.prev=r.prev;}
+    else if(!C.day)return loadDay(false,true).then(function(){if(C.form){keepForm();renderTripForm();}});
+    if(!had||!typing()){keepForm();renderTripForm();}
+  });
+}
+function mdOf(ymd){var p=String(ymd||'').split('-');return p.length===3?Number(p[1])+'/'+Number(p[2]):'';}
+function niceStamp(s){var p=String(s||'').split(' ');return nice(p[0])+(p[1]?' at '+t12(p[1]):'');}
+function lvTxt(){
+  var c={V:0,JV:0,O:0},f=C.form;Object.keys(f.lv).forEach(function(k){if(c[f.lv[k]]!=null)c[f.lv[k]]++;});
+  return (c.V+c.JV+c.O)+' traveling · Varsity '+c.V+' · JV '+c.JV+' · Other '+c.O;
+}
+function renderTripForm(){
+  var f=C.form, P=people();
+  var h='<div class="top"><h1>'+(f.id?'Change trip':'New trip')+'</h1></div><div class="pad">';
+  h+='<div class="card"><label class="l" for="tname">Trip name</label><input id="tname" class="field" maxlength="60" placeholder="Quad at Millennium" value="'+E(f.name)+'" style="font-size:18px">'+
+     '<label class="l" for="tdate" style="margin-top:12px">Date</label><input id="tdate" class="field" type="date" value="'+E(f.date)+'" style="font-size:18px">'+
+     '<label class="l" for="texc" style="margin-top:12px">Excused line for the office</label><input id="texc" class="field" maxlength="120" placeholder="Excused 12/1 for classes 5-7" value="'+E(f.excuse)+'" style="font-size:18px">'+
+     '<p class="hint">Printed on the roster that is emailed. Finish it with the class periods, like 5-7.</p></div>';
+  if(!P){h+='<div class="hero info"><div class="spin"></div><div class="d">Loading roster…</div></div>';}
+  else{
+    h+='<div class="sech">Who is traveling?</div><div class="note" id="lvn" style="font-weight:700" aria-live="polite">'+lvTxt()+'</div>'+
+       '<div class="chips">'+(C.prev&&!f.id?'<button class="chip" data-a="lvPrev">Same as '+E(C.prev.name)+'</button>':'')+'<button class="chip'+(f.only?' on':'')+'" data-a="lvOnly" aria-pressed="'+!!f.only+'">Show picked only</button><button class="chip" data-a="lvClear">Clear all</button></div>'+
+       '<input class="field" id="pq" data-i="psearch" placeholder="Search name" value="'+E(f.q||'')+'" autocomplete="off" style="margin-bottom:12px;min-height:50px;font-size:18px"><div id="plist"></div>'+
+       (C.people?'<button class="btn sec" data-a="mgrAdd" style="margin-top:12px">Add a manager or student assistant</button>':'');
+  }
+  if(f.err)h+='<div class="err">'+E(f.err)+'</div>';
+  h+='<div style="margin-top:14px"><button class="btn" data-a="tripSave"'+(f.busy?' disabled':'')+'>'+(f.busy?'Saving…':'Save trip')+'</button><button class="btn ghost" data-a="tripCancel">Cancel</button></div>';
+  $app.innerHTML=h+'</div>'+nav();
+  renderPick();
+}
+function renderPick(){
+  var el=document.getElementById('plist'),f=C.form; if(!el||!f)return;
+  var q=(f.q||'').trim().toLowerCase();
+  var list=people().filter(function(a){return (!q||a.name.toLowerCase().indexOf(q)>=0)&&(!f.only||f.lv[a.id]);});
+  function row(a){
+    var cur=f.lv[a.id]||'';
+    function b(v,label,say){return '<button class="lv'+(cur===v?' on':'')+'" data-a="lv" data-id="'+E(a.id)+'" data-v="'+v+'" aria-pressed="'+(cur===v)+'" aria-label="'+say+': '+E(a.name)+'">'+label+'</button>';}
+    return '<div class="pick"><span class="nm">'+E(a.name)+'<small>'+(a.staff?'Manager / student assistant':'Gr '+E(a.grade||'?')+(a.cleared?'':' · <span class="warn" style="color:#b3261e;font-weight:700">Not cleared</span>'))+'</small></span><span class="lvs">'+
+      (a.staff?b('O','Going','Going'):b('V','V','Varsity')+b('JV','JV','JV')+b('O','Other','Other'))+'</span></div>';
+  }
+  var ath=list.filter(function(a){return !a.staff;}), st=list.filter(function(a){return a.staff;});
+  el.innerHTML=(ath.length?'<div class="rows">'+ath.map(row).join('')+'</div>':'')+
+    (st.length?'<div class="sech">Managers and student assistants</div><div class="rows">'+st.map(row).join('')+'</div>':'')+
+    (!list.length?'<div class="rows"><div class="empty">'+(q?'No one matches "'+E(f.q)+'".':'No one is picked yet.')+'</div></div>':'');
+}
+function keepForm(){
+  var f=C.form,g=function(id){return document.getElementById(id);}; if(!f)return;
+  if(g('tname'))f.name=g('tname').value; if(g('tdate'))f.date=g('tdate').value; if(g('texc'))f.excuse=g('texc').value; if(g('pq'))f.q=g('pq').value;
+}
+
+/* ---------- travel roster: preview, PDF, email to the office ---------- */
+function rosterSheet(msg,bad){
+  var d=C.trip.data, tv=d.travel, t=d.trip;
+  var md=mdOf(t.date), m=/(\d{1,2}\/\d{1,2})/.exec(tv.excuse||''), mismatch=m&&m[1]!==md;
+  var unfinished=!tv.excuse||/classes?\s*$/i.test(tv.excuse);
+  var h='<h3>Travel roster</h3><p>'+E(t.name)+' · '+E(nice(t.date))+' · '+tv.rows.length+' listed</p>'+
+    '<div class="tr"><div class="trb">'+E(tv.title)+'</div><div class="trb">'+(tv.excuse?E(tv.excuse):'(no excused line yet)')+'</div><div class="trh"><span>ID</span><span>Name</span></div>'+
+    tv.rows.map(function(r){return '<div class="trr"><span>'+E(r.id)+'</span><span>'+E(r.name)+'</span></div>';}).join('')+'</div>';
+  if(unfinished)h+='<div class="err">The excused line is not finished. Tap "Change the roster or excused line" and add the class periods.</div>';
+  else if(mismatch)h+='<div class="err">Check the date: the excused line says '+E(m[1])+' but the trip is on '+E(md)+'.</div>';
+  if(msg)h+='<div class="'+(bad?'err':'saved')+'" style="margin-top:10px">'+E(msg)+'</div>';
+  h+='<p style="margin:12px 0 8px;color:#0f1b2d">'+(tv.to?'Goes to: <b>'+E(tv.to)+'</b>'+(tv.cc?'<br>Copy to: '+E(tv.cc):''):'<b style="color:#b3261e">No office email address is set.</b> Add it in the Sheet: Config tab, TRAVEL_EMAIL_TO.')+
+    (tv.emailedAt?'<br>'+(tv.changed?'<b style="color:#b3261e">Changed since it was emailed '+E(niceStamp(tv.emailedAt))+'.</b> Send it again so the office has the right list.':'<b style="color:#157a3c">✓ Emailed '+E(niceStamp(tv.emailedAt))+'</b>'):'')+'</p>';
+  h+='<button class="btn" data-a="rosterEmail"'+(unfinished||!tv.to?' disabled':'')+'>'+(tv.emailedAt&&!tv.changed?'Email it again':'Email this roster to the office')+'</button>'+
+     '<button class="btn sec" data-a="rosterPdf"'+(unfinished?' disabled':'')+'>Get the PDF</button>'+
+     '<button class="btn ghost" data-a="tripEdit">Change the roster or excused line</button><button class="btn ghost" data-a="close">Close</button>';
+  openSheet(h);
+}
+function needsScript(r){return r&&r.error==='BAD'?'This needs the updated Code.gs in the Sheet. Paste it, run setup, and deploy a new version.':(r&&r.message)||'Something went wrong.';}
+
+/* ---------- reports ---------- */
+function setRange(r){
+  C.range=r; var t=BOOT.today;
+  if(r==='week'){C.from=weekStart(t);C.to=t;} else if(r==='month'){C.from=monthStart(t);C.to=t;} else if(r==='season'){C.from='2000-01-01';C.to=t;}
+  else if(r==='lastweek'){C.from=addDays(weekStart(t),-7);C.to=addDays(weekStart(t),-1);}
+  C.rep=null;renderReports();
+  api('coachReport',C.pin,C.from,C.to).then(function(res){ if(!guard(res))return; if(!res.ok){C.err=res.message;}else{C.err='';C.rep=res;} if(C.tab==='reports'&&!C.ath)renderReports(); });
+}
+function pcCls(p){return p==null?'':p>=90?'g':p>=75?'y':'r';}
+function strip(marks,max){var m=marks.slice(-max);return '<span class="marks" aria-hidden="true">'+m.split('').map(function(c){return '<i class="m-'+c+'"></i>';}).join('')+'</span>';}
+function renderReports(){
+  if(C.cyc)return renderCycle();
+  if(C.ath)return renderAthlete2();
+  var h='<div class="top"><h1>'+E(BOOT.team)+' · Reports</h1><div class="sub">For one day, use the Today tab and the ‹ › arrows.</div></div><div class="pad">';
+  h+='<div class="chips">'+[['week','This week'],['lastweek','Last week'],['month','This month'],['season','Season']].map(function(x){return '<button class="chip'+(C.range===x[0]?' on':'')+'" data-a="range" data-r="'+x[0]+'">'+x[1]+'</button>';}).join('')+'</div>';
+  var r=C.rep;
+  if(C.err)h+='<div class="err">'+E(C.err)+'</div>';
+  if(!r){h+='<div class="hero info"><div class="spin"></div></div>';}
+  else if(!r.days.length&&!r.sessions){h+='<div class="rows"><div class="empty">No practices recorded '+(C.range==='season'?'yet':'in this range')+'.</div></div>';}
+  else if(!r.days.length){
+    var xr=r.rows.filter(function(x){return x.x;}).sort(function(a,b){return b.x-a.x||(a.name<b.name?-1:1);});
+    h+='<div class="note">No practices in this range. Optional sessions held: <b>'+r.sessions+'</b>.</div><div class="rows">'+(xr.length?xr.map(function(x){
+      return '<button class="rep" data-a="openAth" data-id="'+E(x.id)+'"><span class="nm">'+E(x.name)+'</span><span class="pill p-P">+'+x.x+' optional</span></button>';}).join(''):'<div class="empty">No one was logged in them.</div>')+'</div>';
+  }
+  else{
+    var att=0,den=0; r.rows.forEach(function(x){att+=x.P+x.L;den+=r.days.length-x.E;});
+    h+='<div class="kv"><div class="tile"><b>'+r.days.length+'</b><span>Practices</span></div><div class="tile"><b>'+(den?Math.round(100*att/den):0)+'%</b><span>Team attendance</span></div><div class="tile"><b>'+r.rows.filter(function(x){return x.pct!=null&&x.pct<75;}).length+'</b><span>Under 75%</span></div></div>';
+    if(r.sessions)h+='<div class="note">Optional sessions held: <b>'+r.sessions+'</b>. Each athlete\'s count shows as "+ optional". They are not part of the percentage.</div>';
+    h+='<div class="legend"><span><i class="m-P"></i>Here</span><span><i class="m-L"></i>Late</span><span><i class="m-E"></i>Excused</span><span><i class="m-A"></i>Absent</span><span>'+E(nice(r.days[0]))+' – '+E(nice(r.days[r.days.length-1]))+'</span></div>';
+    h+='<div class="seg"><button data-a="sort" data-s="pct" class="'+(C.sort==='pct'?'on':'')+'">Lowest attendance first</button><button data-a="sort" data-s="name" class="'+(C.sort==='name'?'on':'')+'">A to Z</button></div>';
+    var rows=r.rows.slice(); if(C.sort==='pct')rows.sort(function(a,b){return (a.pct==null?101:a.pct)-(b.pct==null?101:b.pct)||(a.name<b.name?-1:1);});
+    h+='<div class="rows">'+rows.map(function(x){
+      return '<button class="rep" data-a="openAth" data-id="'+E(x.id)+'"><span class="nm">'+E(x.name)+'<small>'+x.P+' here · '+x.L+' late · '+x.E+' exc · '+x.A+' absent'+(x.x?' · +'+x.x+' optional':'')+'</small>'+strip(x.marks,24)+'</span><span class="pc '+pcCls(x.pct)+'">'+(x.pct==null?'–':x.pct+'%')+'</span></button>';
+    }).join('')+'</div><p class="hint">Excused days do not count against the percentage. Late counts as attended.</p>'+
+    '<button class="btn sec" data-a="export" style="margin-top:12px">Send this report to the Sheet</button>';
+  }
+  if(C.cycle)h+='<button class="btn ghost" data-a="cycOpen" style="margin-top:12px">Cycle log · needs the Health PIN</button>';
+  $app.innerHTML=h+'</div>'+nav();
+}
+
+/* ---------- cycle log (only for a team whose Sheet has it turned on; opened with a second PIN every time) ---------- */
+function cycClose(){C.cyc=null;closeSheet();if(C.tab!=='reports')return;if(C.rep)renderReports();else setRange(C.range);}
+function loadCycle(reopen){
+  var X=C.cyc; if(!X)return;
+  api('coachCycle',C.pin,X.pin).then(function(r){
+    if(!guard(r)||C.cyc!==X)return;
+    X.busy=false;
+    if(!r.ok){X.data=null;X.pin='';X.err=needsScript(r);closeSheet();return renderCycle();}
+    X.err='';X.data=r;renderCycle();
+    if(reopen)cycSheet(reopen);
+  });
+}
+function cycSave(fn,id,arg1,arg2,reopen,done){
+  var X=C.cyc; if(!X)return;
+  closeSheet();
+  var args=['coachCycle'+fn,C.pin,X.pin,id]; if(arg1!==undefined)args.push(arg1); if(arg2!==undefined)args.push(arg2);
+  api.apply(null,args).then(function(r){
+    if(!guard(r)||C.cyc!==X)return;
+    if(!r.ok){toast('NOT SAVED: '+needsScript(r),null,true); if(r.error==='HPIN'||r.error==='HPIN_LOCKED'){X.data=null;X.pin='';X.err=r.message;return renderCycle();} return loadCycle(id);}
+    if(!reopen)toast(done||'Saved.');   // when her sheet reopens, the sheet itself shows what changed
+    loadCycle(reopen?id:'');
+  });
+}
+function spanTxt(s,today){
+  var a=nice(s.from), b=s.open?'today':nice(s.to);
+  return (s.from===s.to?a:a+' – '+b)+' · '+(s.open?'day '+s.days+' so far':s.days+(s.days===1?' day':' days'));
+}
+function renderCycle(){
+  var X=C.cyc, h='<div class="top"><h1>'+E(BOOT.team)+' · Cycle log</h1><div class="sub">Private. As each athlete reported it.</div></div><div class="pad">';
+  if(!X.data){
+    h+='<div class="card"><label class="l" for="hpin" style="font-size:22px">Health PIN</label>'+
+       '<input id="hpin" class="field big-id" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="12"'+(X.busy?' disabled':'')+'>'+(X.err?'<div class="err">'+E(X.err)+'</div>':'')+
+       '<p class="hint">A second PIN, kept in the Config tab of the Sheet. It is asked for every time, so this log stays with the coach who should see it.</p></div>'+
+       '<button class="btn" data-a="cycGo"'+(X.busy?' disabled':'')+'>'+(X.busy?'Opening…':'Open the cycle log')+'</button><button class="btn ghost" data-a="cycBack">‹ Back to reports</button>';
+    $app.innerHTML=h+'</div>'+nav();
+    var f=document.getElementById('hpin'); if(f&&!X.busy)f.focus();
+    return;
+  }
+  var d=X.data, yes=d.athletes.filter(function(a){return a.consent;}), no=d.athletes.filter(function(a){return !a.consent;}), on=yes.filter(function(a){return a.today;});
+  h+='<button class="btn ghost" data-a="cycBack" style="margin-bottom:12px">‹ Close the cycle log</button>';
+  h+='<div class="kv"><div class="tile"><b>'+on.length+'</b><span>On cycle today</span></div><div class="tile"><b>'+yes.length+'</b><span>Consent on file</span></div><div class="tile"><b>'+no.length+'</b><span>No form yet</span></div></div>';
+  h+='<div class="note">Each athlete marks this herself after she checks in, so a day with no check-in is blank. Days 3 or fewer apart are shown as one period.</div>';
+  function row(a){
+    var s=a.spans[0], sm=!a.consent?(s?'Has logged days · box is off':'Box is off'):!s?'Nothing logged yet':(a.today?'':'Last: ')+spanTxt(s);
+    return '<button class="row'+(a.today?' s-E':'')+'" data-a="cycAth" data-id="'+E(a.id)+'"><span class="nm">'+E(a.name)+'<small>'+E(sm)+'</small></span>'+
+      '<span class="pill '+(a.today?'p-E':'p-none')+'">'+(a.today?'On now':a.consent?'Open':'Add')+'</span></button>';
+  }
+  h+='<div class="sech">Consent form on file · '+yes.length+'</div><div class="rows">'+(yes.length?yes.slice().sort(function(a,b){return (b.today-a.today)||(a.name<b.name?-1:1);}).map(row).join(''):'<div class="empty">No one yet. An athlete gets the "On cycle today" box only after you mark her parent\'s consent form as on file below.</div>')+'</div>';
+  if(no.length)h+='<div class="sech">No consent form yet · '+no.length+'</div><div class="rows">'+no.map(row).join('')+'</div>';
+  $app.innerHTML=h+'</div>'+nav();
+}
+function cycSheet(id){
+  var X=C.cyc, a=X&&X.data&&X.data.athletes.filter(function(x){return x.id===id;})[0]; if(!a)return;
+  var h='<h3>'+E(a.name)+'</h3>', erase=a.spans.length?'<button class="btn danger" data-a="cycEraseAsk" data-id="'+E(id)+'">Erase her whole log</button>':'';
+  if(!a.consent){
+    h+='<p>Her "On cycle today" box is off. Turn it on only when her parent\'s signed consent form is on file.</p>'+
+       '<button class="btn" data-a="cycConsent" data-id="'+E(id)+'" data-on="1">The consent form is on file — turn it on</button>'+erase+'<button class="btn ghost" data-a="close">Close</button>';
+    return openSheet(h);
+  }
+  h+=a.spans.length?'<ul class="plist">'+a.spans.slice(0,8).map(function(s){
+      return '<li>'+E(spanTxt(s))+(s.dates.length<s.days?'<small>Marked on '+s.dates.length+' of the '+s.days+' days</small>':'')+'</li>';}).join('')+'</ul>'+(a.spans.length>8?'<p>Showing the last 8.</p>':'')
+    :'<p>Nothing logged yet.</p>';
+  h+='<button class="btn '+(a.today?'sec':'')+'" data-a="cycToday" data-id="'+E(id)+'" data-on="'+(a.today?'':'1')+'">'+(a.today?'Not on cycle today — remove today':'Mark on cycle today')+'</button>'+
+     '<label class="l" for="cycd" style="margin-top:16px">Fix another day</label><input id="cycd" class="field" type="date" max="'+E(X.data.today)+'">'+
+     '<div class="grid2" style="margin-top:10px"><button class="btn sec" data-a="cycDay" data-id="'+E(id)+'" data-on="1">On cycle that day</button><button class="btn sec" data-a="cycDay" data-id="'+E(id)+'" data-on="">Not on cycle</button></div><div id="cycerr"></div>'+
+     '<div style="margin-top:16px"><button class="btn ghost" data-a="cycConsent" data-id="'+E(id)+'" data-on="">Consent withdrawn — turn her box off</button>'+erase+'<button class="btn ghost" data-a="close">Close</button></div>';
+  openSheet(h);
+}
+function openAth(id){
+  closeSheet();C.tab='reports';C.ath={id:id};renderAthlete2();window.scrollTo(0,0);
+  api('coachAthlete',C.pin,id).then(function(r){ if(!guard(r))return; if(!C.ath||C.ath.id!==id)return; C.ath=r.ok?{id:id,data:r}:{id:id,err:r.message}; renderAthlete2(); });
+}
+function statFor(days,from,to){
+  var p=0,e=0,n=0; days.forEach(function(d){ if(d.date<from||d.date>to)return; n++; if(d.mark==='P'||d.mark==='L')p++; if(d.mark==='E')e++; });
+  return {n:n,pct:(n-e)>0?Math.round(100*p/(n-e)):null,att:p};
+}
+function renderAthlete2(){
+  var x=C.ath, h='';
+  if(!x.data){h='<div class="top"><h1>Athlete</h1></div><div class="pad">'+(x.err?'<div class="err">'+E(x.err)+'</div>':'<div class="hero info"><div class="spin"></div></div>')+'<button class="btn ghost" data-a="athBack" style="margin-top:12px">‹ Back</button></div>'+nav();$app.innerHTML=h;return;}
+  var d=x.data,t=d.today;
+  var w=statFor(d.days,weekStart(t),t), m=statFor(d.days,monthStart(t),t), s=statFor(d.days,'0','9');
+  function tl(st,label){return '<div class="tile"><b class="pc '+pcCls(st.pct)+'" style="width:auto">'+(st.pct==null?'–':st.pct+'%')+'</b><span>'+label+' · '+st.att+'/'+st.n+'</span></div>';}
+  h='<div class="top"><h1>'+E(d.name)+'</h1><div class="sub">Grade '+E(d.grade||'?')+' · ID '+E(d.id)+(d.cleared?'':' · NOT CLEARED')+(d.active?'':' · INACTIVE')+'</div></div><div class="pad">';
+  h+='<button class="btn ghost" data-a="athBack" style="margin-bottom:12px">‹ Back to report</button>';
+  h+='<div class="kv">'+tl(w,'Week')+tl(m,'Month')+tl(s,'Season')+'</div>';
+  h+='<div class="card"><h2>Every practice</h2>';
+  if(!d.days.length)h+='<div class="empty">No practices recorded yet.</div>';
+  else h+='<table class="t"><thead><tr><th>Day</th><th>Status</th><th>Time</th><th>Note</th></tr></thead><tbody>'+d.days.slice().reverse().map(function(y){
+    var lab={P:'✓ Here',L:'◷ Late',E:'Excused',A:'✕ Absent'}[y.mark];
+    return '<tr><td>'+E(nice(y.date))+'</td><td><span class="pill p-'+y.mark+'" style="padding:3px 10px;font-size:14px">'+lab+'</span></td><td>'+E(t12(y.time))+'</td><td>'+E(y.note)+'</td></tr>';}).join('')+'</tbody></table>';
+  h+='</div>';
+  if(d.extras&&d.extras.length)h+='<div class="card"><h2>Optional sessions · '+d.extras.length+'</h2><table class="t"><thead><tr><th>Day</th><th>Session</th><th>Time</th></tr></thead><tbody>'+d.extras.map(function(y){
+    return '<tr><td>'+E(nice(y.date))+'</td><td>'+E(y.name)+'</td><td>'+E(t12(y.time))+'</td></tr>';}).join('')+'</tbody></table><p class="hint">Not counted in the percentages above.</p></div>';
+  h+='<div class="card"><h2>Weight log (lb)</h2>';
+  if(!d.weights.length)h+='<div class="empty">No weights recorded yet.</div>';
+  else h+='<table class="t"><thead><tr><th>Day</th><th>Before</th><th>After</th><th>Change</th></tr></thead><tbody>'+d.weights.map(function(y){
+    var flag=y.pct!==''&&Number(y.pct)<=-d.flagPct;
+    return '<tr><td>'+E(nice(y.date))+'</td><td>'+E(y.pre)+'</td><td>'+E(y.post)+'</td><td class="'+(flag?'flag':'')+'">'+(y.chg===''?'':(Number(y.chg)>0?'+':'')+E(y.chg)+' ('+E(y.pct)+'%)')+'</td></tr>';}).join('')+'</tbody></table><p class="hint">Red = lost more than '+d.flagPct+'% of body weight in one practice.</p>';
+  h+='</div>';
+  h+=d.active?'<button class="btn danger" data-a="deactAsk">Remove from the active roster</button>':'<button class="btn sec" data-a="react">Put back on the active roster</button>';
+  $app.innerHTML=h+'</div>'+nav();
+}
+
+/* ---------- more ---------- */
+function renderMore(){
+  var d=C.day, url=BOOT.url, h='<div class="top"><h1>'+E(BOOT.team)+' · More</h1></div><div class="pad">';
+  if(C.more==='qr'){
+    h+='<div class="card" style="text-align:center"><h2>Athletes scan this</h2>'+(url?'<div class="qrbox">'+qrSvg(url)+'</div><p class="hint">One code does everything: check-in, weights and the bus.</p>':'')+'</div>'+
+       (url?'<a class="btn" style="text-align:center;text-decoration:none;line-height:32px" href="'+E(url)+'?p=poster" target="_blank" rel="noopener">Open the printable poster</a>':'')+'<button class="btn ghost" data-a="moreBack">‹ Back</button>';
+  } else if(C.more==='add'){
+    h+='<div class="card"><h2>Add an athlete</h2><label class="l" for="aid">Student ID</label><input id="aid" class="field" inputmode="numeric" maxlength="10">'+
+       '<label class="l" for="afn" style="margin-top:10px">First name</label><input id="afn" class="field" maxlength="40"><label class="l" for="aln" style="margin-top:10px">Last name</label><input id="aln" class="field" maxlength="40">'+
+       '<label class="l" for="agr" style="margin-top:10px">Grade</label><input id="agr" class="field" inputmode="numeric" maxlength="2">'+(C.err?'<div class="err">'+E(C.err)+'</div>':'')+'</div>'+
+       '<button class="btn" data-a="addSave">Add to roster</button><button class="btn ghost" data-a="moreBack">‹ Back</button>';
+  } else if(C.more==='sched'){
+    var S=C.sched;
+    h+='<div class="datebar" style="background:#111;border-radius:12px;padding:6px 8px;margin:0 0 12px"><button data-a="schedWeek" data-n="-7" aria-label="Previous week">‹</button><div class="dt" style="color:#fff">'+(S?'Week of '+E(nice(S.monday)):'…')+'</div><button data-a="schedWeek" data-n="7" aria-label="Next week">›</button></div>';
+    if(!S)h+='<div class="hero info"><div class="spin"></div></div>';
+    else{
+      h+='<div class="note">Tap a day to set it. <b>Early</b> = '+E(t12(S.early))+', <b>Late</b> = '+E(t12(S.late))+'. Check-in opens '+E(C.day?C.day.settings.before:'30')+' min before the start. Saturdays and holidays: set the day and check-in opens like any other day.</div>';
+      h+='<div class="rows">'+S.days.map(function(x){
+        var lab=x.slot==='off'?'No practice':(x.slot==='early'?'Early':x.slot==='late'?'Late':'Custom')+' · '+t12(x.start)+'–'+t12(x.end);
+        var cls=x.slot==='off'?'':x.slot==='late'?'s-L':'s-P';
+        return '<button class="row '+cls+'" data-a="schedDay" data-d="'+E(x.date)+'"><span class="nm">'+E(x.dow)+' '+E(nice(x.date).replace(/^\w+, /,''))+(x.date===S.today?' · today':'')+'<small>'+E(x.source==='set'?(x.note||'Set by coach'):x.source==='rule'?'Weekly rule':'')+'</small></span><span class="pill '+(x.slot==='off'?'p-none':x.slot==='late'?'p-L':'p-P')+'">'+E(lab)+'</span></button>';}).join('')+'</div>';
+      h+='<div class="sech">Fill ahead</div><div class="grid2"><button class="btn sec" data-a="fill" data-s="early">This week early, then alternate</button><button class="btn sec" data-a="fill" data-s="late">This week late, then alternate</button></div><p class="hint">Fills Mon–Fri for 4 weeks from this week. Days you already set are left alone.</p>';
+    }
+    h+='<button class="btn ghost" data-a="moreBack" style="margin-top:12px">‹ Back</button>';
+  } else if(C.more==='inactive'){
+    h+='<div class="sech">Removed from the active roster</div>';
+    var ina=(C.roster||[]).filter(function(a){return !a.active;});
+    h+=!C.roster?'<div class="hero info"><div class="spin"></div></div>':!ina.length?'<div class="rows"><div class="empty">No one has been removed.</div></div>':'<div class="rows">'+ina.map(function(a){return '<button class="row" data-a="openAth" data-id="'+E(a.id)+'"><span class="nm">'+E(a.name)+'</span><span class="pill p-none">Open</span></button>';}).join('')+'</div>';
+    h+='<button class="btn ghost" data-a="moreBack" style="margin-top:12px">‹ Back</button>';
+  } else {
+    h+='<button class="btn" data-a="more" data-m="qr">Show the QR code</button><button class="btn sec" data-a="more" data-m="sched">Practice schedule</button>';
+    h+='<div class="card" style="margin-top:14px"><h2>Check-in rules</h2>';
+    if(!d)h+='<div class="spin"></div>';
+    else{
+      var pm=d.presence||'off', opts=[['Location','loc','At school, code as backup'],['LocationOnly','loconly','At school only'],['Code','code','Code only'],['Off','off','Anywhere']];
+      var hint={loc:'The phone must be at the wrestling room. If a phone cannot get its location, you give that athlete today\'s backup code.',loconly:'The phone must be at the wrestling room. No backup code: if location fails, you tap the name.',code:'Athletes type the 2-digit code you show them. No location check.',off:'No check. Athletes can check in from anywhere.'}[pm];
+      h+='<b>Where athletes can check in</b><div class="chips" style="margin:8px 0">'+opts.map(function(o){return '<button class="chip'+(pm===o[1]?' on':'')+'" data-a="presence" data-v="'+o[0]+'" aria-pressed="'+(pm===o[1])+'">'+o[2]+'</button>';}).join('')+'</div><p class="hint" style="margin:0 0 10px">'+hint+' The same rule applies to boarding the bus.</p>'+
+         (pm==='loc'||pm==='code'?'<div class="note code">Today\'s code: <b>'+E(d.code)+'</b></div>':'')+
+         (pm==='loc'||pm==='loconly'?'<div class="'+(d.schoolSet?'note':'err')+'" style="margin:0 0 10px">School location: <b>'+(d.schoolSet?'set ✓':'NOT SET')+'</b></div><button class="btn sec" data-a="schoolAsk">Set school location to where I am standing</button>':'')+
+         '<hr style="border:0;border-top:1px solid #d5dbe5;margin:12px 0"><div class="grid2"><div><label class="l" for="s1">Early slot starts</label><input id="s1" class="field" type="time" data-c="cfg" data-k="EARLY_START" value="'+E(d.settings.early)+'"></div>'+
+         '<div><label class="l" for="s5">Late slot starts</label><input id="s5" class="field" type="time" data-c="cfg" data-k="LATE_START" value="'+E(d.settings.lateStart)+'"></div>'+
+         '<div><label class="l" for="s3">Opens (min before)</label><input id="s3" class="field" inputmode="numeric" data-c="cfg" data-k="OPEN_BEFORE_MIN" value="'+E(d.settings.before)+'"></div>'+
+         '<div><label class="l" for="s2">Late after (min)</label><input id="s2" class="field" inputmode="numeric" data-c="cfg" data-k="LATE_AFTER_MIN" value="'+E(d.settings.late)+'"></div>'+
+         '<div><label class="l" for="s4">Closes (min after)</label><input id="s4" class="field" inputmode="numeric" data-c="cfg" data-k="CLOSE_AFTER_MIN" value="'+E(d.settings.after)+'"></div>'+
+         '<div><label class="l" for="s6">Practice length (min)</label><input id="s6" class="field" inputmode="numeric" data-c="cfg" data-k="PRACTICE_LENGTH_MIN" value="'+E(d.settings.length)+'"></div></div><p class="hint">Changes save by themselves. Which days are early or late is set under Practice schedule.</p>';
+    }
+    h+='</div><button class="btn sec" data-a="more" data-m="add">Add an athlete</button><button class="btn ghost" data-a="more" data-m="inactive">Removed athletes</button>'+
+       '<button class="btn ghost" data-a="athMode">Athlete check-in screen</button><button class="btn ghost" data-a="signOut">Sign out of coach screens</button>';
+  }
+  $app.innerHTML=h+'</div>'+nav();
+}
+
+function loadSched(){
+  var m=C.schedMonday;
+  api('coachSchedule',C.pin,m).then(function(r){ if(!guard(r))return; if(C.more!=='sched'||C.schedMonday!==m)return; if(!r.ok){C.err=r.message;}else C.sched=r; renderMore(); });
+}
+
+/* ---------- poster ---------- */
+function renderPoster(){
+  $app.style.maxWidth='none';$app.style.paddingBottom='0';document.body.style.background='#fff';
+  $app.innerHTML='<div class="poster"><h1>'+E(BOOT.team)+'</h1><h2>SCAN TO CHECK IN</h2><div class="qr">'+(BOOT.url?qrSvg(BOOT.url):'Deploy the app first.')+'</div>'+
+    '<ol><li>Open your phone camera and point it here.</li><li>First time only: type your Student ID.</li><li>Wait for the <b>green check</b>.</li></ol>'+
+    '<div style="font-size:20px">No phone? Tell Coach before practice starts.</div><div class="u">'+E(BOOT.url)+'</div>'+
+    '<button class="btn noprint" data-a="print" style="max-width:320px;margin:18px auto 0">Print</button></div>';
+}
+
+/* ====================================================================== */
+/*  EVENTS                                                                */
+/* ====================================================================== */
+var act={
+  idNext:function(){
+    var v=(document.getElementById('sid').value||'').replace(/\D/g,'');
+    if(v.length<3){A.err='Type your Student ID number.';return renderAthlete();}
+    A.busy=true;A.err='';renderAthlete();
+    api('athleteState',v,deviceId()).then(function(r){
+      A.busy=false;
+      if(!r.ok){A.err=r.message;return renderAthlete();}
+      A.cand=r.me;A.view='confirm';renderAthlete();
+    });
+  },
+  idYes:function(){A.sid=A.cand.id;set('wp_sid',A.sid);A.me=null;athleteStart();},
+  cycFold:function(ds,el){   // opened in place: the page is not redrawn, so a weight being typed is not lost
+    A.cyc=!A.cyc;var p=document.getElementById('cycp'),t=el.querySelector('small');if(p)p.hidden=!A.cyc;
+    el.setAttribute('aria-expanded',A.cyc?'true':'false');if(t)t.textContent='Private · '+(A.cyc?'tap to close':'tap to open');
+  },
+  idNo:function(){A.view='id';A.err='';A.cand=null;renderAthlete();},
+  'switch':function(){openSheet('<h3>Switch athlete?</h3><p>This phone is set up for '+E(A.me.name)+'. Only switch if this is not your phone setup. One phone can check in one athlete per day.</p><button class="btn danger" data-a="switchYes">Switch athlete</button><button class="btn ghost" data-a="close">Cancel</button>');},
+  switchYes:function(){closeSheet();set('wp_sid','');A.sid='';A.me=null;A.err='';A.msg={};A.view='id';renderAthlete();},
+  retry:function(){A.me=null;athleteStart();},
+  codeGo:function(){var c=(document.getElementById('code').value||'').trim();if(!c)return;A.what='auto';doCheckIn({code:c});},
+  extraGo:function(){
+    if(pmode()!=='code')return tryCheckIn('extra');
+    var c=(document.getElementById('xcode').value||'').trim();if(!c)return;A.what='extra';doCheckIn({code:c});
+  },
+  xcodeGo:function(){var c=(document.getElementById('xcode').value||'').trim();if(!c)return;A.what='extra';doCheckIn({code:c});},
+  wtSave:function(ds){
+    var el=document.getElementById('w'+ds.kind), v=el.value.trim().replace(',','.');
+    A.msg={wt:'Saving…'};
+    api('athleteWeight',A.sid,ds.kind,v,deviceId()).then(function(r){
+      if(r.me)A.me=r.me;
+      A.msg=r.ok?{wt:v===''?'Cleared.':'Saved ✓'}:{wt:r.message,wtBad:true};
+      renderAthlete();
+    });
+  },
+  board:function(){
+    if(pmode()==='off')return doBoard({});
+    A.busy=true;A.busyMsg='Finding your location…';renderAthlete();
+    locate().then(doBoard,function(why){A.busy=false;A.busyMsg='';A.msg={bus:why+(pmode()==='loc'?' Or ask Coach for the backup code.':' Or see Coach to be marked on the bus.')};renderAthlete();});
+  },
+  boardCode:function(){var c=(document.getElementById('bcode').value||'').trim();if(c)doBoard({code:c});},
+  coachMode:function(){MODE='coach';coachStart();},
+  athMode:function(){MODE='athlete';athleteStart();},
+  coachRetry:function(){coachStart();},
+  pinGo:function(){
+    var v=(document.getElementById('pin').value||'').trim(); if(!v)return;
+    renderLoading('Checking PIN…');
+    api('coachLogin',v).then(function(r){ if(!r.ok)return renderLogin(r.message); C.pin=v;set('wp_pin',v);BOOT.today=r.today;C.date=r.today;C.cycle=!!r.cycle;go('today'); });
+  },
+  signOut:function(){set('wp_pin','');C.pin='';renderLogin('');},
+  tab:function(ds){go(ds.t);},
+  sessNew:function(){
+    var live=C.date===BOOT.today, sat=pd(C.date).getDay()===6; C.sdur=60;
+    openSheet('<h3>'+(live?'Start an optional session':'Record an optional session')+'</h3><p>'+(live?'Athletes check in with the same QR code, starting now. It is tracked on its own and never counts for or against practice attendance.':'For '+E(nice(C.date))+'. You add the athletes by hand on the next screen.')+'</p>'+
+      '<label class="l" for="sname">What is it?</label><input id="sname" class="field" maxlength="40" value="'+(sat?'Saturday recovery':'Weight room')+'" style="font-size:18px">'+
+      '<div class="chips" style="margin-top:10px">'+['Weight room','Saturday recovery','Open mat'].map(function(n){return '<button class="chip" data-a="sessName" data-n="'+n+'">'+n+'</button>';}).join('')+'</div>'+
+      (live?'<div class="l">Open for</div><div class="seg">'+[[60,'1 hour'],[120,'2 hours'],[180,'3 hours']].map(function(o,i){return '<button data-a="sessDur" data-m="'+o[0]+'" class="'+(i?'':'on')+'" aria-pressed="'+!i+'">'+o[1]+'</button>';}).join('')+'</div>':'')+
+      '<div id="serr"></div><button class="btn ok" data-a="sessStart">'+(live?'Start it now':'Create it')+'</button><button class="btn ghost" data-a="close">Cancel</button>');
+  },
+  sessName:function(ds){document.getElementById('sname').value=ds.n;},
+  sessDur:function(ds,el){var b=el.parentNode.children;for(var i=0;i<b.length;i++){b[i].className=b[i]===el?'on':'';b[i].setAttribute('aria-pressed',b[i]===el);}C.sdur=Number(ds.m);},
+  sessStart:function(ds,el){
+    var name=document.getElementById('sname').value.trim(), date=C.date; el.disabled=true;
+    api('coachSessionStart',C.pin,name,C.sdur||60,date).then(function(r){
+      if(!guard(r))return;
+      if(!r.ok){el.disabled=false;var m=document.getElementById('serr');if(m)m.innerHTML='<div class="err">'+E(needsScript(r))+'</div>';return;}
+      closeSheet();
+      if(date===BOOT.today){toast(name+' is open. Athletes can scan now.');loadDay(false);} else openSess(r.id);
+    });
+  },
+  sessOpen:function(ds){openSess(ds.id);},
+  sessBack:function(){C.sess=null;loadDay(true);window.scrollTo(0,0);},
+  sessFilter:function(ds){C.sonly=ds.f==='in';C.sess.data.athletes.forEach(function(a){a._s=false;});renderSess(true);},
+  sessTap:function(ds){
+    var a=C.sess.data.athletes.filter(function(x){return x.id===ds.id;})[0]; if(!a||a._p)return;
+    if(!a['in'])return sessMark(ds.id,true);
+    openSheet('<h3>'+E(a.name)+'</h3><p>In '+E(C.sess.data.session.name)+(a.time?' since '+E(t12(a.time)):'')+'.</p><button class="btn danger" data-a="sessOut" data-id="'+E(ds.id)+'">Take out of this session</button><button class="btn ghost" data-a="close">Keep</button>');
+  },
+  sessOut:function(ds){closeSheet();sessMark(ds.id,false);},
+  sessClose:function(){
+    var id=C.sess.id; C.sess.data.session.open=false; renderSess(true);
+    api('coachSessionClose',C.pin,id).then(function(r){ if(!guard(r))return; if(!r.ok)toast('NOT SAVED: '+r.message,null,true); else toast('Session closed. You can still add names by hand.'); loadSess(); });
+  },
+  sessDelAsk:function(){openSheet('<h3>Delete this session?</h3><p>'+E(C.sess.data.session.name)+' on '+E(nice(C.sess.data.session.date))+' and everyone logged in it will be erased. This cannot be undone.</p><button class="btn danger" data-a="sessDel">Delete session</button><button class="btn ghost" data-a="close">Keep it</button>');},
+  sessDel:function(){var id=C.sess.id;closeSheet();C.sess=null;api('coachSessionDelete',C.pin,id).then(function(r){ if(!guard(r))return; if(!r.ok)toast('NOT DELETED: '+r.message,null,true); loadDay(true); });renderLoading('Deleting…');},
+  reload:function(){loadDay(true);},
+  day:function(ds){var n=addDays(C.date,Number(ds.n)); if(n>BOOT.today)return; C.date=n;C.day=null;C.filter='';C.sticky={};C.q='';loadDay(true);},
+  dayToday:function(){C.date=BOOT.today;C.day=null;C.filter='';C.sticky={};C.q='';loadDay(true);},
+  filter:function(ds){C.filter=C.filter===ds.f?'all':ds.f;C.sticky={};C.q='';renderDay(true);},
+  filterAll:function(){C.filter='all';C.sticky={};renderDay(true);},
+  tapAth:function(ds){var a=findA(ds.id); if(!a||a._p)return; if(!a.status)mark(ds.id,'Present',null); else athSheet(ds.id);},
+  setSt:function(ds){var n=document.getElementById('note');var note=n?n.value.trim():null;closeSheet();mark(ds.id,ds.s,ds.s?note:'');},
+  openAth:function(ds){openAth(ds.id);},
+  athBack:function(){C.ath=null;if(C.rep)renderReports();else setRange(C.range);},
+  close:function(){closeSheet();},
+  undo:function(){var u=toast.undo;$toast.className='';if(u)u();},
+  showRest:function(){C.showRest=true;renderWeights(true);},
+  wtYes:function(){var el=C.wtEl;closeSheet();if(el)saveWt(el,true);},
+  wtNo:function(){var el=C.wtEl;closeSheet();if(el){el.value='';el.focus();}},
+  tripNew:function(){C.form={name:'',date:BOOT.today,excuse:'Excused '+mdOf(BOOT.today)+' for classes ',lv:{},q:'',only:false};renderTripForm();window.scrollTo(0,0);loadPeople();},
+  tripOpen:function(ds){loadTrip(ds.id);},
+  tripBack:function(){C.trip=null;C.trips=null;loadTrips();},
+  tripView:function(ds){C.trip.view=ds.v;renderTrip();},
+  tripLeg:function(ds){
+    var id=C.trip.id; C.trip.data.trip.leg=ds.v; if(ds.v==='Return')C.trip.view='Return'; renderTrip();
+    api('coachTripLeg',C.pin,id,ds.v).then(function(r){ if(!guard(r))return; if(!r.ok)toast('NOT SAVED: '+r.message,null,true); else if(ds.v==='Done'){toast('Trip finished.');} loadTrip(id,true);
+      if(r.ok&&ds.v==='Return'&&!C.trip.data.trip.retSet&&(C.trip.data.presence==='loc'||C.trip.data.presence==='loconly'))setTripAnchor('Return',true); });
+  },
+  tapRider:function(ds){var r=C.trip.data.riders.filter(function(x){return x.id===ds.id;})[0]; if(!r||r._p)return; if(!r[legKey()].status)riderMark(ds.id,'On'); else riderSheet(ds.id);},
+  rider:function(ds){var n=document.getElementById('rnote'),note=n?n.value.trim():'';closeSheet();riderMark(ds.id,ds.s,ds.s==='Released'?note:'');},
+  headcount:function(ds){
+    var T=C.trip; T.data.headcount[T.view]={n:ds.n,time:nowHM()}; renderTrip(true);
+    api('coachTripHeadcount',C.pin,T.id,T.view,ds.n).then(function(r){ if(!guard(r))return; if(!r.ok){delete T.data.headcount[T.view];renderTrip(true);toast('NOT SAVED: '+r.message,null,true);} });
+  },
+  tripEdit:function(){closeSheet();var t=C.trip.data.trip,lv={};t.roster.forEach(function(id){lv[id]=(t.levels&&t.levels[id])||'V';});C.form={id:t.id,name:t.name,date:t.date,excuse:t.excuse||('Excused '+mdOf(t.date)+' for classes '),lv:lv,q:'',only:true};renderTripForm();window.scrollTo(0,0);loadPeople();},
+  tripDelAsk:function(){openSheet('<h3>Delete this trip?</h3><p>'+E(C.trip.data.trip.name)+' and its bus records will be erased. This cannot be undone.</p><button class="btn danger" data-a="tripDel">Delete trip</button><button class="btn ghost" data-a="close">Keep it</button>');},
+  tripDel:function(){var id=C.trip.id;closeSheet();C.trip=null;C.trips=null;renderBus();api('coachTripDelete',C.pin,id).then(function(){loadTrips();});},
+  tripCancel:function(){var id=C.form.id;C.form=null;if(id)renderTrip();else renderBus();},
+  lv:function(ds,el){
+    var f=C.form; if(f.lv[ds.id]===ds.v)delete f.lv[ds.id]; else f.lv[ds.id]=ds.v;
+    var sib=el.parentNode.querySelectorAll('.lv');
+    for(var i=0;i<sib.length;i++){var on=f.lv[ds.id]===sib[i].getAttribute('data-v');sib[i].className='lv'+(on?' on':'');sib[i].setAttribute('aria-pressed',on);}
+    var n=document.getElementById('lvn'); if(n)n.textContent=lvTxt();
+  },
+  lvClear:function(){keepForm();C.form.lv={};C.form.only=false;renderTripForm();},
+  lvOnly:function(){keepForm();C.form.only=!C.form.only;renderTripForm();},
+  lvPrev:function(){
+    keepForm();var f=C.form,ok={};people().forEach(function(a){ok[a.id]=a;});f.lv={};
+    C.prev.roster.forEach(function(id){if(ok[id])f.lv[id]=ok[id].staff?'O':(C.prev.levels[id]||'V');});
+    f.only=true;renderTripForm();toast('Copied from '+C.prev.name+'. Check the list before you save.');
+  },
+  mgrAdd:function(){
+    openSheet('<h3>Add a manager or student assistant</h3><p>They go on travel rosters as Other. They are not on the daily attendance list.</p>'+
+      '<label class="l" for="mid">Student ID</label><input id="mid" class="field" inputmode="numeric" maxlength="10">'+
+      '<label class="l" for="mfn" style="margin-top:10px">First name</label><input id="mfn" class="field" maxlength="40">'+
+      '<label class="l" for="mln" style="margin-top:10px">Last name</label><input id="mln" class="field" maxlength="40"><div id="merr"></div>'+
+      '<div style="margin-top:14px"><button class="btn" data-a="mgrSave">Add and put on this trip</button><button class="btn ghost" data-a="close">Cancel</button></div>');
+  },
+  mgrSave:function(ds,el){
+    var g=function(id){return document.getElementById(id).value.trim();},a={id:g('mid'),first:g('mfn'),last:g('mln'),grade:'',role:'Manager'};
+    el.disabled=true;
+    api('coachAddAthlete',C.pin,a).then(function(r){
+      if(!guard(r))return;
+      if(!r.ok){el.disabled=false;var m=document.getElementById('merr');if(m)m.innerHTML='<div class="err">'+E(r.message)+'</div>';return;}
+      closeSheet();keepForm();
+      if(!r.existing&&C.people){C.people.push({id:a.id,name:a.last+', '+a.first,grade:'',cleared:true,staff:true});}
+      if(C.form){C.form.lv[a.id]='O';renderTripForm();}
+      toast(r.message||(a.first+' '+a.last+' added as Other.'));loadPeople();
+    });
+  },
+  rosterOpen:function(){rosterSheet();},
+  rosterEmail:function(ds,el){
+    var id=C.trip.id; el.disabled=true; el.textContent='Sending…';
+    api('coachTravelEmail',C.pin,id).then(function(r){
+      if(!guard(r))return;
+      if(!r.ok){if(!C.trip||C.trip.id!==id)return toast('Roster NOT emailed: '+needsScript(r),null,true);
+        return rosterSheet(r.error==='NET'?'No answer from the server, so the email may or may not have gone out. Close this, wait a minute, and look for "Emailed" on the trip before sending again.':needsScript(r),true);}
+      closeSheet();toast('Roster emailed to '+r.to+'.');if(C.trip&&C.trip.id===id)loadTrip(id,true);
+    });
+  },
+  rosterPdf:function(ds,el){
+    var id=C.trip.id; el.disabled=true; el.textContent='Making the PDF…';
+    api('coachTravelPdf',C.pin,id).then(function(r){
+      if(!guard(r)||!C.trip||C.trip.id!==id)return;
+      if(!r.ok)return rosterSheet(needsScript(r),true);
+      try{
+        var bin=atob(r.b64),u=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
+        if(C.pdfUrl)URL.revokeObjectURL(C.pdfUrl);
+        C.pdfUrl=URL.createObjectURL(new Blob([u],{type:'application/pdf'}));
+        openSheet('<h3>The PDF is ready</h3><p>'+E(r.filename)+'</p><a class="btn" id="pdflink" style="text-align:center;text-decoration:none;line-height:32px" href="'+C.pdfUrl+'" download="'+E(r.filename)+'" target="_blank" rel="noopener">Open the PDF</a><button class="btn ghost" data-a="rosterOpen">‹ Back to the roster</button>');
+      }catch(e){rosterSheet('Could not open the PDF on this device.',true);}
+    });
+  },
+  tripSave:function(){
+    keepForm();var f=C.form;f.busy=true;f.err='';renderTripForm();
+    api('coachTripSave',C.pin,{id:f.id||'',name:f.name,date:f.date,roster:Object.keys(f.lv),levels:f.lv,excuse:f.excuse}).then(function(r){
+      if(!guard(r))return; f.busy=false;
+      if(!r.ok){f.err=r.message;return renderTripForm();}
+      C.form=null;C.trips=null;loadTrip(r.id);window.scrollTo(0,0);
+    });
+  },
+  range:function(ds){setRange(ds.r);},
+  cycOpen:function(){C.cyc={pin:'',data:null,err:'',busy:false};renderCycle();window.scrollTo(0,0);},
+  cycBack:function(){cycClose();},
+  cycGo:function(){var v=(document.getElementById('hpin').value||'').trim(); if(!v)return; C.cyc.pin=v;C.cyc.busy=true;C.cyc.err='';renderCycle();loadCycle();},
+  cycAth:function(ds){cycSheet(ds.id);},
+  cycConsent:function(ds){cycSave('Consent',ds.id,!!ds.on,undefined,!!ds.on,'Her box is off. Her logged days are kept until you erase them.');},
+  cycToday:function(ds){cycSave('Mark',ds.id,C.cyc.data.today,!!ds.on,true);},
+  cycDay:function(ds){
+    var v=(document.getElementById('cycd')||{}).value||'';
+    if(!v){var m=document.getElementById('cycerr');if(m)m.innerHTML='<div class="err">Pick the day first.</div>';return;}
+    cycSave('Mark',ds.id,v,!!ds.on,true);
+  },
+  cycEraseAsk:function(ds){var a=C.cyc.data.athletes.filter(function(x){return x.id===ds.id;})[0];openSheet('<h3>Erase the cycle log for '+E(a?a.name:'this athlete')+'?</h3><p>Every day logged for her is deleted from the Sheet. This cannot be undone.</p><button class="btn danger" data-a="cycErase" data-id="'+E(ds.id)+'">Erase her log</button><button class="btn ghost" data-a="cycAth" data-id="'+E(ds.id)+'">Keep it</button>');},
+  cycErase:function(ds){cycSave('Erase',ds.id,undefined,undefined,false,'Her log is erased.');},
+  sort:function(ds){C.sort=ds.s;renderReports();},
+  'export':function(el){
+    toast('Writing the report to the Sheet…');
+    api('coachExport',C.pin,C.from,C.to).then(function(r){ if(!guard(r))return; if(!r.ok)return toast('NOT SAVED: '+r.message,null,true);
+      openSheet('<h3>Report is in the Sheet</h3><p>'+r.rows+' athletes × '+r.days+' practices, on the tab named <b>Report</b>. Print it or share it from there.</p>'+(r.url?'<a class="btn" style="text-align:center;text-decoration:none;line-height:32px" href="'+E(r.url)+'" target="_blank" rel="noopener">Open the Sheet</a>':'')+'<button class="btn ghost" data-a="close">Done</button>'); });
+  },
+  deactAsk:function(){openSheet('<h3>Remove '+E(C.ath.data.name)+'?</h3><p>They leave the daily list and reports. Their history is kept and you can put them back any time.</p><button class="btn danger" data-a="deact">Remove from active roster</button><button class="btn ghost" data-a="close">Cancel</button>');},
+  deact:function(){closeSheet();setActive(false);},
+  react:function(){setActive(true);},
+  more:function(ds){C.tab='more';C.more=ds.m;C.err='';renderMore();window.scrollTo(0,0);if(ds.m==='sched'){C.sched=null;C.schedMonday=C.schedMonday||weekStart(BOOT.today);loadSched();}if(ds.m==='inactive'){C.roster=null;renderMore();api('coachRoster',C.pin).then(function(r){if(!guard(r))return;C.roster=r.ok?r.athletes:[];if(C.more==='inactive')renderMore();});}},
+  moreBack:function(){C.more='';C.err='';renderMore();},
+  schedWeek:function(ds){C.schedMonday=addDays(C.schedMonday,Number(ds.n));C.sched=null;renderMore();loadSched();},
+  schedDay:function(ds){
+    var x=C.sched.days.filter(function(y){return y.date===ds.d;})[0];
+    openSheet('<h3>'+E(x.dow)+', '+E(nice(x.date).replace(/^\w+, /,''))+'</h3><p>'+(x.slot==='off'?'No practice':'Practice '+E(t12(x.start))+'–'+E(t12(x.end)))+'</p>'+
+      '<div class="grid2"><button class="btn ok" data-a="setDay" data-d="'+E(x.date)+'" data-s="early">Early · '+E(t12(C.sched.early))+'</button><button class="btn" style="background:#b56f00" data-a="setDay" data-d="'+E(x.date)+'" data-s="late">Late · '+E(t12(C.sched.late))+'</button></div>'+
+      '<label class="l" for="cst" style="margin-top:14px">Other start time</label><div class="wrow" style="margin:0"><div><input id="cst" class="field" type="time" value="'+E(x.slot==='custom'?x.start:'')+'"></div><button class="btn sec" data-a="setDay" data-d="'+E(x.date)+'" data-s="custom">Set</button></div>'+
+      '<label class="l" for="snote" style="margin-top:14px">Note (optional)</label><input id="snote" class="field" maxlength="80" placeholder="Thanksgiving week, tournament…" value="'+E(x.source==='set'?x.note:'')+'" style="font-size:17px;min-height:50px">'+
+      '<div style="margin-top:14px"><button class="btn danger" data-a="setDay" data-d="'+E(x.date)+'" data-s="off">No practice this day</button>'+(x.source==='set'?'<button class="btn ghost" data-a="setDay" data-d="'+E(x.date)+'" data-s="default">Back to the weekly rule</button>':'')+'<button class="btn ghost" data-a="close">Cancel</button></div>');
+  },
+  setDay:function(ds){
+    var st=(document.getElementById('cst')||{}).value||'', note=(document.getElementById('snote')||{}).value||'';
+    closeSheet();
+    api('coachSetDay',C.pin,ds.d,ds.s,st,note).then(function(r){ if(!guard(r))return; if(!r.ok)return toast('NOT SAVED: '+r.message,null,true); toast('Saved.'); loadSched(); C.day=null; loadDay(false,true); });
+  },
+  fill:function(ds){
+    api('coachFillWeeks',C.pin,C.schedMonday,ds.s,4).then(function(r){ if(!guard(r))return; if(!r.ok)return toast('NOT SAVED: '+r.message,null,true); toast(r.added+' practice days added.'); loadSched(); C.day=null; loadDay(false,true); });
+  },
+  cfgToggle:function(ds){
+    var d=C.day,k=ds.k,v='';
+    renderMore();
+    api('coachSetConfig',C.pin,k,v).then(function(r){ if(!guard(r))return; if(!r.ok)toast('NOT SAVED: '+r.message,null,true); loadDay(false,true); });
+  },
+  presence:function(ds){
+    C.day.presence={Location:'loc',LocationOnly:'loconly',Code:'code',Off:'off'}[ds.v];renderMore();
+    api('coachSetConfig',C.pin,'PRESENCE_CHECK',ds.v).then(function(r){ if(!guard(r))return; if(!r.ok)toast('NOT SAVED: '+r.message,null,true); else toast('Saved.'); loadDay(false,true); });
+  },
+  schoolAsk:function(){openSheet('<h3>Set the school location?</h3><p>Only do this while you are standing in the wrestling room. Athletes will have to be near this spot to check in.</p><button class="btn" data-a="schoolSet">I am in the wrestling room — set it</button><button class="btn ghost" data-a="close">Cancel</button>');},
+  schoolSet:function(){
+    closeSheet();toast('Finding your location…');
+    locate().then(function(p){
+      api('coachSetSchool',C.pin,p.lat,p.lng).then(function(r){ if(!guard(r))return; if(!r.ok)return toast('NOT SAVED: '+r.message,null,true); toast('School location set (accurate to about '+Math.round(p.acc*1.09361)+' yards).'); loadDay(false,true); });
+    },function(why){toast(why,null,true);});
+  },
+  tripAnchor:function(){setTripAnchor(C.trip.view,false);},
+  addSave:function(){
+    var a={id:document.getElementById('aid').value.trim(),first:document.getElementById('afn').value.trim(),last:document.getElementById('aln').value.trim(),grade:document.getElementById('agr').value.trim()};
+    api('coachAddAthlete',C.pin,a).then(function(r){ if(!guard(r))return; if(!r.ok){C.err=r.message;return renderMore();} C.err='';C.more='';C.day=null;renderMore();loadDay(false,true);toast(r.message||(a.first+' '+a.last+' added.')); });
+  },
+  print:function(){window.print();}
+};
+function setActive(on){
+  var id=C.ath.id;
+  api('coachSetActive',C.pin,id,on).then(function(r){ if(!guard(r))return; if(!r.ok)return toast('NOT SAVED: '+r.message,null,true); C.day=null;C.rep=null;toast(on?'Back on the active roster.':'Removed from the active roster.'); openAth(id); });
+}
+var MODE=BOOT.mode;
+
+document.addEventListener('click',function(e){
+  if(e.target===$sheet)return closeSheet();
+  var el=e.target.closest?e.target.closest('[data-a]'):null; if(!el||el.disabled)return;
+  var f=act[el.getAttribute('data-a')]; if(f){ if(el.tagName==='BUTTON')e.preventDefault(); f(el.dataset,el); }
+});
+document.addEventListener('change',function(e){
+  var el=e.target,c=el.getAttribute&&el.getAttribute('data-c');
+  if(el.id==='tdate'&&C.form){   // keep the date in the excused line in step with the trip date
+    var x=document.getElementById('texc'),md=mdOf(el.value);
+    if(x&&md){ if(!x.value.trim())x.value='Excused '+md+' for classes '; else x.value=x.value.replace(/^(\s*Excused\s+)\d{1,2}\/\d{1,2}/i,'$1'+md); }
+  }
+  if(!c)return;
+  if(c==='cyc'){   // saved in place: the page is not redrawn, so a weight being typed is not lost
+    var st=document.getElementById('cycst'); el.disabled=true; if(st){st.className='hint';st.textContent='Saving…';}
+    return api('athleteCycle',A.sid,deviceId(),el.checked).then(function(r){
+      if(r.me)A.me=r.me;
+      if(!A.me||!A.me.cycle)return renderAthlete();
+      var b=document.getElementById('cyc'),t=document.getElementById('cycst');
+      if(b){b.disabled=false;b.checked=!!A.me.cycle.on;}
+      if(t){t.className=r.ok?'saved':'err';t.textContent=r.ok?'Saved ✓':'NOT SAVED. '+r.message;}
+    });
+  }
+  if(c==='wt')saveWt(el,false);
+  else if(c==='cfg'){api('coachSetConfig',C.pin,el.getAttribute('data-k'),el.value).then(function(r){ if(!guard(r))return; if(!r.ok)return toast('NOT SAVED: '+r.message,null,true); toast('Saved.'); loadDay(false,true); });}
+});
+document.addEventListener('input',function(e){
+  var i=e.target.getAttribute&&e.target.getAttribute('data-i');
+  if(i==='search'){C.q=e.target.value;renderList();}
+  else if(i==='ssearch'){C.sq=e.target.value;renderSessList();}
+  else if(i==='psearch'&&C.form){C.form.q=e.target.value;renderPick();}
+});
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'&&sheetOpen())return closeSheet();
+  if(e.key!=='Enter')return;
+  var id=e.target.id;
+  if(id==='sid')act.idNext(); else if(id==='code')act.codeGo(); else if(id==='pin')act.pinGo(); else if(id==='hpin')act.cycGo();
+  else if(e.target.getAttribute&&e.target.getAttribute('data-c')==='wt')e.target.blur();
+});
+function typing(){var a=document.activeElement;return a&&(a.tagName==='INPUT'||a.tagName==='SELECT');}
+setInterval(function(){
+  if(document.hidden||sheetOpen()||typing()||C.pending>0||MODE!=='coach'||!C.pin)return;
+  if(C.tab==='today'&&C.sess){if(C.sess.data&&C.sess.data.session.open)loadSess();}
+  else if(C.tab==='today'&&C.day&&C.date===BOOT.today&&!C.q)loadDay(false);
+  else if(C.tab==='bus'&&C.trip&&C.trip.data&&!C.form)loadTrip(C.trip.id,true);
+},15000);
+document.addEventListener('visibilitychange',function(){
+  if(document.hidden){if(C.cyc)cycClose();return;}
+  if(MODE==='athlete'&&A.sid&&A.view==='home'&&!A.busy&&!typing())athleteStart();
+});
+
+if(MODE==='poster')renderPoster(); else if(MODE==='coach')coachStart(); else athleteStart();
+})();
+</script>
+</body>
+</html>

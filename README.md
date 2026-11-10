@@ -59,6 +59,34 @@ The Travel tab holds one trip per meet. A trip is both the travel roster for the
 - The coach may add, move or reorder columns in the sign-up Sheet; rows follow the column headers.
 - To close sign-up, set `SIGNUP_OPEN` to `N` in Config.
 
+## The girls team: a separate deployment
+
+Girls wrestling runs the same app as its own deployment. The two teams share the code and nothing else.
+
+| | Boys | Girls |
+|---|---|---|
+| Athlete check-in (the QR code) | https://jerry-d-ball.github.io/wrestling-checkin/ | https://jerry-d-ball.github.io/wrestling-checkin/girls/ |
+| Coach screens | `…/wrestling-checkin/?p=coach` | `…/wrestling-checkin/girls/?p=coach` |
+| Printable QR poster | `…/wrestling-checkin/?p=poster` | `…/wrestling-checkin/girls/?p=poster` |
+| Connection | `config.js` | `girls/config.js` |
+| Google Sheet, roster, coach PIN, web app URL | the boys' Sheet | the girls' own Sheet |
+
+- **Setting it up:** the girls' coach makes a new blank Google Sheet in her own Google account, pastes `apps-script/Code.gs` into Extensions > Apps Script, runs **`setupGirls`** (not `setup`), and deploys it as a web app exactly as in "One-time setup". Its `/exec` URL goes in `girls/config.js` as `window.WP_API`. Until then the girls page says it is not connected yet. `setupGirls` refuses to run in a Sheet that already holds attendance.
+- **The page:** `girls/index.html` is generated from `index.html` by `node tools/build-girls.js` (only the page title and home-screen name differ). Run it after every change to `index.html`; `test/girls.test.js` fails if the two are out of step. The girls page saves the Student ID and coach PIN on a phone under its own keys (`WP_KEY`), so a phone that uses both pages keeps them apart.
+- **Later updates:** paste the new `Code.gs` into both Sheets. Plain `setup` in the girls' Sheet keeps it a girls Sheet.
+
+### Cycle log (girls Sheet only)
+
+The girls' coach can track which days each athlete reports being on her period.
+
+- **For the athlete:** after she checks in, the weigh-in card has a folded "Cycle log" row. Opened, it is one checkbox: "On cycle today". It is folded because the check-in screen gets shown to coaches and teammates.
+- **Who gets the box:** only an athlete whose parent consent form the coach has marked as on file, and only on the phone that checked her in that day. Another phone that types her Student ID sees nothing.
+- **For the coach:** Reports > Cycle log, opened with a second PIN (`HEALTH_PIN` in Config) that is asked for every time and never saved on the phone. It lists who is on today and each athlete's periods as reported: first day, last day, number of days. Days no more than 3 apart count as one period, so a weekend does not split it. The coach can add or remove a day, turn an athlete's box on or off, and erase an athlete's log.
+- **Where it is kept:** the hidden `Cycle` and `CycleConsent` tabs of the girls' Sheet. It is not on the Today, Weights, Reports, athlete, travel or export screens. Five wrong Health PINs lock the log for 15 minutes.
+- **Off switch:** `CYCLE_TRACKING` = `N` in Config turns it off for everyone. None of this exists in a Sheet set up with plain `setup`.
+
+This is health information about students. Before any athlete's box is turned on, the school should have approved collecting it and her parent should have signed a consent form (in Arizona see A.R.S. 15-117).
+
 ## How the app knows an athlete is really there
 
 Set under More > "Where athletes can check in" on the coach screens.
@@ -71,10 +99,10 @@ Set under More > "Where athletes can check in" on the coach screens.
 
 ## Changing the data script later
 
-Paste the new `Code.gs`, then Deploy > Manage deployments > pencil > Version: New version > Deploy. The URL stays the same.
+Paste the new `Code.gs`, run `setup`, then Deploy > Manage deployments > pencil > Version: New version > Deploy. The URL stays the same. Do this in each team's Sheet.
 
 ## Tests
 
-`node test/logic.test.js` checks the data script against a mock Sheet. `node test/ui.test.js` drives the real `index.html` in a phone-sized browser (needs Playwright), and `node test/signup.test.js` does the same for `signup.html`. All names in the tests are made up.
+`node test/logic.test.js` checks the data script against a mock Sheet, and `node test/cycle.test.js` does the same for a girls-team Sheet and the cycle log. `node test/ui.test.js` drives the real `index.html` in a phone-sized browser (needs Playwright), `node test/girls.test.js` does the same for the girls page, and `node test/signup.test.js` for `signup.html`. All names in the tests are made up.
 
 `qrcode.js` is qrcode-generator by Kazuhiko Arase, MIT license.

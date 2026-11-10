@@ -13,6 +13,10 @@
  *                (such as sending the travel roster email).
  *             2) Deploy > Manage deployments > pencil > Version: New version > Deploy.
  *                Do NOT make a new deployment, or the app's address changes.
+ *
+ * A SECOND TEAM (girls wrestling) is its own new, blank Sheet with this same file pasted in.
+ *             In that Sheet run "setupGirls" instead of "setup", then deploy the same way.
+ *             The two Sheets share nothing: separate rosters, attendance, PINs and web app URLs.
  */
 
 var TABS = {
@@ -58,6 +62,23 @@ var DEFAULTS = [
 
 var EDITABLE_KEYS = ['PRESENCE_CHECK', 'EARLY_START', 'LATE_START', 'OPEN_BEFORE_MIN', 'LATE_AFTER_MIN', 'CLOSE_AFTER_MIN', 'PRACTICE_LENGTH_MIN'];
 
+/* What "setupGirls" changes. None of this exists in a Sheet set up with plain "setup". */
+var GIRLS = {
+  TEAM_NAME: 'West Point Girls Wrestling',
+  TRAVEL_TITLE: "West Point Women's Wrestling",
+  TRAVEL_EMAIL_SIGNOFF: 'West Point Girls Wrestling Coaching Staff',
+  SIGNUP_OPEN: 'N',
+  SITE_URL: 'https://jerry-d-ball.github.io/wrestling-checkin/girls/'
+};
+var CYCLE_TABS = {
+  Cycle:        ['Date', 'StudentID', 'Name', 'Time', 'EnteredBy'],
+  CycleConsent: ['StudentID', 'Name', 'OnFile', 'UpdatedAt']
+};
+var CYCLE_DEFAULTS = [
+  ['CYCLE_TRACKING', 'Y', 'Y = an athlete whose parent consent form is on file gets a private "On cycle today" box after she checks in. N = off for everyone. The days are kept on the hidden Cycle tab.'],
+  ['HEALTH_PIN', '', 'Second PIN that opens the cycle log (Reports > Cycle log). Give it only to the coach who should see that log. It must be different from COACH_PIN.']
+];
+
 var __now = null;      // tests only
 var __memo = {};
 
@@ -94,39 +115,66 @@ function onOpen() {
 /*  SETUP                                                                 */
 /* ====================================================================== */
 
-function setup() {
-  var ss = ss_();
-  Object.keys(TABS).forEach(function (name) {
+/** Safe to run again after every paste. A Sheet first set up with setupGirls stays a girls-team Sheet. */
+function setup() { return setup_(isGirlsSheet_()); }
+
+/** Run this, not "setup", in the girls team's own new blank Sheet. Safe to run again. */
+function setupGirls() { return setup_(true); }
+
+function isGirlsSheet_() {
+  var c = ss_().getSheetByName('Config');
+  return !!c && c.getDataRange().getDisplayValues().some(function (r) { return String(r[0]).trim() === 'CYCLE_TRACKING'; });
+}
+
+function setup_(girls) {
+  var ss = ss_(), say = function (out) { try { SpreadsheetApp.getUi().alert(out); } catch (err) { /* run from editor */ } Logger.log(out); return out; };
+  if (girls && !isGirlsSheet_()) {
+    var used = ss.getSheetByName('Attendance');
+    if (used && used.getLastRow() > 1) return say('STOP. Nothing was changed.\n\nThis Sheet already holds a team\'s attendance. The girls team needs its own new, blank Sheet: make one, paste this file into it, and run setupGirls there.');
+  }
+  var tabs = {};
+  Object.keys(TABS).forEach(function (name) { tabs[name] = TABS[name]; });
+  if (girls) Object.keys(CYCLE_TABS).forEach(function (name) { tabs[name] = CYCLE_TABS[name]; });
+  Object.keys(tabs).forEach(function (name) {
     var sh = ss.getSheetByName(name);
     if (!sh) sh = ss.insertSheet(name);
     sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).setNumberFormat('@');   // plain text: no surprise date/number conversion
-    if (sh.getLastRow() === 0) sh.appendRow(TABS[name]);
-    else addMissingHeaders_(sh, TABS[name]);
+    if (sh.getLastRow() === 0) sh.appendRow(tabs[name]);
+    else addMissingHeaders_(sh, tabs[name]);
     sh.getRange(1, 1, 1, sh.getLastColumn()).setFontWeight('bold');
     sh.setFrozenRows(1);
+    if (CYCLE_TABS[name]) { try { sh.hideSheet(); } catch (err) { /* stays visible */ } }
   });
   __memo = {};
   var have = {};
-  read_('Config').rows.forEach(function (r) { have[r.Key] = true; });
-  var firstTime = !have.COACH_PIN;
+  read_('Config').rows.forEach(function (r) { have[r.Key] = r.Value || ''; });
+  var firstTime = have.COACH_PIN == null;
   var cfgSheet = ss.getSheetByName('Config');
-  DEFAULTS.forEach(function (d) {
-    if (have[d[0]]) return;
+  var pin = function () { return String(Math.floor(100000 + Math.random() * 900000)); };
+  DEFAULTS.concat(girls ? CYCLE_DEFAULTS : []).forEach(function (d) {
+    var mine = girls && GIRLS[d[0]] != null ? GIRLS[d[0]] : d[1];
+    if (have[d[0]] != null) {
+      // "setup" was run here before "setupGirls": move the settings nobody has touched over to the girls team's values
+      if (girls && mine !== d[1] && have[d[0]] === d[1]) { have[d[0]] = mine; setCfg_(d[0], mine); }
+      return;
+    }
     var row = d.slice();
-    if (d[0] === 'COACH_PIN') row[1] = String(Math.floor(100000 + Math.random() * 900000));
+    row[1] = mine;
+    if (d[0] === 'COACH_PIN') row[1] = pin();
+    if (d[0] === 'HEALTH_PIN') { do { row[1] = pin(); } while (row[1] === have.COACH_PIN); }
+    have[d[0]] = row[1];
     cfgSheet.appendRow(row);
   });
   __memo = {};
   var msg = '';
   if (read_('Athletes').rows.length === 0) {
     try { msg = importRoster_(); } catch (err) { msg = 'Roster was NOT copied (' + err.message + '). Paste your roster into the Athletes tab.'; }
+    if (girls && /^No OLD_SHEET_ID/.test(msg)) msg = 'The roster is empty: type or paste your athletes into the Athletes tab (StudentID, FirstName, LastName, Grade), or add them in the app under More.';
   }
-  var out = 'Setup complete. ' + msg + '\nCoach PIN: ' + cfg_('COACH_PIN') + (firstTime
+  return say('Setup complete' + (girls ? ' for ' + cfg_('TEAM_NAME') : '') + '. ' + msg + '\nCoach PIN: ' + cfg_('COACH_PIN') +
+    (girls ? '\nHealth PIN (opens the cycle log only): ' + cfg_('HEALTH_PIN') : '') + (firstTime
     ? '\n\nNext: Deploy > New deployment > Web app > Execute as "Me", Who has access "Anyone". Then copy the web app URL (ends in /exec) and give it to Claude.'
-    : '\n\nNext: Deploy > Manage deployments > pencil > Version: New version > Deploy. (Do not make a new deployment.)');
-  try { SpreadsheetApp.getUi().alert(out); } catch (err) { /* run from editor */ }
-  Logger.log(out);
-  return out;
+    : '\n\nNext: Deploy > Manage deployments > pencil > Version: New version > Deploy. (Do not make a new deployment.)'));
 }
 
 function addMissingHeaders_(sh, want) {
@@ -172,7 +220,9 @@ function importRoster_() {
 
 function showLinks() {
   var u = appUrl_();
-  var msg = 'Athlete check-in (this is the QR code link):\n' + u + '\n\nCoach screens:\n' + u + '?p=coach\n\nQR poster to print:\n' + u + '?p=poster\n\nFuture Freshman Night sign-up:\n' + u + 'signup.html\n\nCoach PIN: ' + cfg_('COACH_PIN');
+  var msg = 'Athlete check-in (this is the QR code link):\n' + u + '\n\nCoach screens:\n' + u + '?p=coach\n\nQR poster to print:\n' + u + '?p=poster' +
+    (isNo_(cfg_('SIGNUP_OPEN')) ? '' : '\n\nFuture Freshman Night sign-up:\n' + u + 'signup.html') + '\n\nCoach PIN: ' + cfg_('COACH_PIN') +
+    (cycleOn_() ? '\nHealth PIN (opens the cycle log only): ' + cfg_('HEALTH_PIN') : '');
   try { SpreadsheetApp.getUi().alert(msg); } catch (err) {}
   Logger.log(msg);
   return msg;
@@ -227,16 +277,17 @@ function athleteCheckIn(studentId, deviceId, proof, what) {
   });
 }
 
-function athleteWeight(studentId, kind, value) {
+function athleteWeight(studentId, kind, value, deviceId) {
   return safe_(function () {
+    deviceId = String(deviceId == null ? '' : deviceId);
     var a = athlete_(studentId);
     if (!a) return { ok: false, error: 'NOT_FOUND', message: 'That ID is not on the roster. See Coach.' };
     var att = find_('Attendance', function (r) { return r.Date === today_() && r.StudentID === a.id; });
     var inSession = find_('SessionLog', function (r) { return r.Date === today_() && r.StudentID === a.id; });
-    if (!inSession && (!att || (att.Status !== 'Present' && att.Status !== 'Late'))) return { ok: false, error: 'NOT_IN', message: 'Check in first. Your weight is saved only when you are checked in for today.', me: stateFor_(a, '') };
+    if (!inSession && (!att || (att.Status !== 'Present' && att.Status !== 'Late'))) return { ok: false, error: 'NOT_IN', message: 'Check in first. Your weight is saved only when you are checked in for today.', me: stateFor_(a, deviceId) };
     var r = saveWeight_(today_(), a, kind, value, 'Athlete');
     if (!r.ok) return r;
-    return { ok: true, me: stateFor_(a, '') };
+    return { ok: true, me: stateFor_(a, deviceId) };
   });
 }
 
@@ -275,7 +326,8 @@ function stateFor_(a, deviceId) {
   var logs = read_('SessionLog').rows.filter(function (r) { return r.Date === day && r.StudentID === a.id; });
   var inS = !!s && logs.some(function (r) { return r.SessionID === s.SessionID; });
   var inPractice = !!att && (att.Status === 'Present' || att.Status === 'Late');
-  return {
+  var cyc = cycleFor_(a, deviceId, day, inPractice ? att : null, logs);
+  var me = {
     // canCheckIn: a scan right now would check this athlete into something. session.offer: show the "also here for ..." button.
     canCheckIn: !a.staff && ((w.open && !att) || (!!s && !inS && !w.open)),
     checkedIn: inPractice || logs.length > 0,
@@ -287,13 +339,15 @@ function stateFor_(a, deviceId) {
     pre: wt ? wt.PreWeight : '', post: wt ? wt.PostWeight : '', change: wt ? wt.ChangeLb : '',
     trip: trip
   };
+  if (cyc) me.cycle = cyc;   // never present unless cycleFor_ allows it for this exact phone
+  return me;
 }
 
 /* ====================================================================== */
 /*  COACH                                                                 */
 /* ====================================================================== */
 
-function coachLogin(pin) { return coach_(pin, function () { return { ok: true, team: cfg_('TEAM_NAME'), today: today_() }; }); }
+function coachLogin(pin) { return coach_(pin, function () { return { ok: true, team: cfg_('TEAM_NAME'), today: today_(), cycle: cycleOn_() }; }); }
 
 /** Everything the Today and Weights screens need for one date. */
 function coachDay(pin, date) {
@@ -969,6 +1023,147 @@ function signupText_(v, max) {
 function isEmail_(v) { return /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(String(v || '')); }
 
 /* ====================================================================== */
+/*  CYCLE LOG (girls team Sheet only: set up with setupGirls)              */
+/* ====================================================================== */
+/*
+ * Privacy rules this section keeps:
+ *  - Nothing here runs unless CYCLE_TRACKING is Y and a HEALTH_PIN is set that differs from the coach PIN.
+ *  - An athlete gets the box only when her parent consent form is marked on file, and only on the
+ *    phone that checked her in today. Typing her Student ID on any other phone shows nothing.
+ *  - The log is read and changed only with the coach PIN plus the Health PIN. It is not part of the
+ *    Today, Weights, Reports, athlete, travel or export screens.
+ */
+
+function cycleOn_() {
+  var hp = cfg_('HEALTH_PIN');
+  return isYes_(cfg_('CYCLE_TRACKING')) && hp.length >= 4 && hp !== cfg_('COACH_PIN');
+}
+
+/** {studentId: true} for each athlete whose parent consent form the coach has marked on file. */
+function cycleConsent_() {
+  var ok = {};
+  read_('CycleConsent').rows.forEach(function (r) { if (isYes_(r.OnFile)) ok[r.StudentID] = true; });
+  return ok;
+}
+
+/** What this phone may see about the athlete's own box. Null = show nothing at all. */
+function cycleFor_(a, deviceId, day, att, logs) {
+  if (a.staff || !deviceId || !cycleOn_() || !cycleConsent_()[a.id]) return null;
+  var mine = function (r) { return !!r && r.DeviceID === deviceId; };
+  if (!mine(att) && !logs.some(mine)) return null;
+  return { on: !!find_('Cycle', function (r) { return r.Date === day && r.StudentID === a.id; }) };
+}
+
+function setCycle_(day, a, on, by) {
+  var ex = find_('Cycle', function (r) { return r.Date === day && r.StudentID === a.id; });
+  if (on && !ex) append_('Cycle', { Date: day, StudentID: a.id, Name: a.name, Time: day === today_() ? nowTime_() : '', EnteredBy: by });
+  if (!on && ex) deleteRow_('Cycle', ex._row);
+}
+
+/** The athlete ticks or clears "On cycle today" on the phone she checked in with. */
+function athleteCycle(studentId, deviceId, on) {
+  return safe_(function () {
+    var a = athlete_(studentId);
+    if (!a) return { ok: false, error: 'NOT_FOUND', message: 'That ID is not on the roster. See Coach.' };
+    deviceId = String(deviceId == null ? '' : deviceId);
+    return locked_(function () {
+      var me = stateFor_(a, deviceId);
+      if (!me.cycle) return { ok: false, error: 'CYCLE_OFF', message: 'This can only be changed on the phone you checked in with today. See your coach.', me: me };
+      setCycle_(today_(), a, on === true || on === 'true', 'Athlete');
+      return { ok: true, me: stateFor_(a, deviceId) };
+    });
+  });
+}
+
+/** Coach PIN first, then the Health PIN. Five wrong Health PINs lock the log for 15 minutes. */
+function health_(pin, hpin, fn) {
+  return coach_(pin, function () {
+    if (!cycleOn_()) return { ok: false, error: 'CYCLE_OFF', message: 'The cycle log is not turned on for this team.' };
+    var no = locked_(function () {
+      var cache = CacheService.getScriptCache(), tries = Number(cache.get('hpin_tries')) || 0;
+      var locked = { ok: false, error: 'HPIN_LOCKED', message: 'Too many wrong tries. The cycle log is locked for 15 minutes.' };
+      if (tries >= 5) return locked;
+      if (String(hpin == null ? '' : hpin).trim() === cfg_('HEALTH_PIN')) { if (tries) cache.remove('hpin_tries'); return null; }
+      cache.put('hpin_tries', String(tries + 1), 900);
+      return tries + 1 >= 5 ? locked : { ok: false, error: 'HPIN', message: 'Wrong Health PIN.' };
+    });
+    if (no) { Utilities.sleep(1500); return no; }
+    return fn();
+  });
+}
+
+/** The whole log: every active wrestler, whether her consent form is on file, and her periods as reported. */
+function coachCycle(pin, hpin) {
+  return health_(pin, hpin, function () {
+    var day = today_(), ok = cycleConsent_(), by = {};
+    read_('Cycle').rows.forEach(function (r) { (by[r.StudentID] = by[r.StudentID] || []).push(r.Date); });
+    return { ok: true, today: day, athletes: wrestlers_().map(function (a) {
+      var spans = cycleSpans_(by[a.id] || [], day);
+      return { id: a.id, name: a.last + ', ' + a.first, consent: !!ok[a.id], today: !!spans.length && spans[0].open, spans: spans };
+    }) };
+  });
+}
+
+/**
+ * Reported days grouped into periods, newest first. Days no more than 3 apart are one period, so a
+ * weekend with no practice does not split it. from = first day reported, to = last day reported,
+ * days = first through last, open = she marked it today.
+ */
+function cycleSpans_(dates, today) {
+  var ds = dates.filter(function (d) { return /^\d{4}-\d{2}-\d{2}$/.test(d); }).sort().filter(function (d, i, all) { return !i || all[i - 1] !== d; });
+  var out = [], cur = null;
+  ds.forEach(function (d) {
+    if (cur && dayGap_(cur.to, d) <= 3) { cur.to = d; cur.dates.push(d); }
+    else { cur = { from: d, to: d, dates: [d] }; out.push(cur); }
+  });
+  out.forEach(function (s) { s.days = dayGap_(s.from, s.to) + 1; s.open = s.to === today; });
+  return out.reverse();
+}
+function dayGap_(a, b) {
+  var t = function (s) { var p = s.split('-'); return Date.UTC(Number(p[0]), Number(p[1]) - 1, Number(p[2])); };
+  return Math.round((t(b) - t(a)) / 86400000);
+}
+
+/** on = the parent consent form is on file, so the athlete gets the box. Off hides it again; her logged days stay until erased. */
+function coachCycleConsent(pin, hpin, studentId, on) {
+  return health_(pin, hpin, function () {
+    var a = athlete_(studentId, true);
+    if (!a || a.staff) return { ok: false, message: 'Athlete not found.' };
+    return locked_(function () {
+      var ex = find_('CycleConsent', function (r) { return r.StudentID === a.id; });
+      var rec = { StudentID: a.id, Name: a.name, OnFile: on === true || on === 'true' ? 'Y' : 'N', UpdatedAt: stamp_() };
+      if (ex) update_('CycleConsent', ex._row, rec); else append_('CycleConsent', rec);
+      return { ok: true };
+    });
+  });
+}
+
+/** The coach adds or removes one day, for an athlete with no phone or to fix a mistake. */
+function coachCycleMark(pin, hpin, studentId, date, on) {
+  return health_(pin, hpin, function () {
+    var a = athlete_(studentId, true), day = normDate_(date) || today_();
+    on = on === true || on === 'true';
+    if (!a || a.staff) return { ok: false, message: 'Athlete not found.' };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || day > today_()) return { ok: false, message: 'Pick today or an earlier day.' };
+    if (on && !cycleConsent_()[a.id]) return { ok: false, error: 'NO_CONSENT', message: 'Mark the parent consent form as on file for this athlete first.' };
+    return locked_(function () { setCycle_(day, a, on, 'Coach'); return { ok: true }; });
+  });
+}
+
+/** Erases every logged day for one athlete (a parent withdrew consent, or she left the team). */
+function coachCycleErase(pin, hpin, studentId) {
+  return health_(pin, hpin, function () {
+    var id = String(studentId == null ? '' : studentId).replace(/\D/g, '');
+    if (!id) return { ok: false, message: 'Athlete not found.' };
+    return locked_(function () {
+      var rows = read_('Cycle').rows.filter(function (r) { return r.StudentID === id; }).sort(function (x, y) { return y._row - x._row; });
+      rows.forEach(function (r) { deleteRow_('Cycle', r._row); });   // bottom row first, so the rows above keep their numbers
+      return { ok: true, removed: rows.length };
+    });
+  });
+}
+
+/* ====================================================================== */
 /*  SHARED LOGIC                                                          */
 /* ====================================================================== */
 
@@ -1174,12 +1369,13 @@ function locked_(fn) {
 function ss_() { return SpreadsheetApp.getActiveSpreadsheet(); }
 
 function sheet_(name) {
-  var sh = ss_().getSheetByName(name);
-  if (!sh && TABS[name]) {
+  var sh = ss_().getSheetByName(name), cols = TABS[name] || CYCLE_TABS[name];
+  if (!sh && cols) {
     sh = ss_().insertSheet(name);
     sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).setNumberFormat('@');
-    sh.appendRow(TABS[name]);
+    sh.appendRow(cols);
     sh.setFrozenRows(1);
+    if (CYCLE_TABS[name]) { try { sh.hideSheet(); } catch (err) { /* stays visible */ } }
   }
   if (!sh) throw new Error('Tab "' + name + '" is missing. Run setup.');
   return sh;
@@ -1276,5 +1472,6 @@ var API_ = {
   coachTravelPeople: coachTravelPeople, coachTravelPdf: coachTravelPdf, coachTravelEmail: coachTravelEmail,
   coachTrips: coachTrips, coachTripSave: coachTripSave, coachTrip: coachTrip, coachTripMark: coachTripMark,
   coachTripLeg: coachTripLeg, coachTripHeadcount: coachTripHeadcount, coachTripDelete: coachTripDelete,
+  athleteCycle: athleteCycle, coachCycle: coachCycle, coachCycleConsent: coachCycleConsent, coachCycleMark: coachCycleMark, coachCycleErase: coachCycleErase,
   signupFreshman: signupFreshman
 };

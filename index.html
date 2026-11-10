@@ -155,6 +155,13 @@ table.t .flag{color:var(--bad);font-weight:800}
 .trh span:first-child,.trr span:first-child{border-right:1px solid #333}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .grid2 .btn{margin-top:0}
+.fold{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:48px;margin-top:12px;padding:8px 2px 0;border:0;border-top:1px solid var(--line);background:none;font-weight:700;font-size:16px;color:var(--ink2);text-align:left}
+.fold small{font-weight:600;font-size:14px}
+.cyc .check{border:2px solid #8793a6;border-radius:12px;min-height:56px;font-size:18px;font-weight:700;margin-top:6px}
+.plist{margin:0 0 12px;padding:0;list-style:none;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.plist li{padding:10px 12px;border-bottom:1px solid var(--line);font-weight:700}
+.plist li:last-child{border-bottom:0}
+.plist small{display:block;font-weight:500;font-size:13px;color:var(--ink2)}
 
 #sheet{position:fixed;inset:0;background:rgba(10,18,32,.55);display:none;align-items:flex-end;justify-content:center;z-index:20}
 #sheet.open{display:flex}
@@ -191,8 +198,10 @@ var $app = document.getElementById('app'), $sheet = document.getElementById('she
 
 /* ---------- utilities ---------- */
 function E(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
-function get(k){try{return localStorage.getItem(k)||'';}catch(e){return mem[k]||'';}}
-function set(k,v){mem[k]=v;try{if(v===''||v==null)localStorage.removeItem(k);else localStorage.setItem(k,v);}catch(e){}}
+var KEY=String(window.WP_KEY||'wp_');   // a second team's page sets WP_KEY so its saved ID and coach PIN stay apart from this one's
+function sk(k){return KEY==='wp_'?k:KEY+k.replace(/^wp_/,'');}
+function get(k){k=sk(k);try{return localStorage.getItem(k)||'';}catch(e){return mem[k]||'';}}
+function set(k,v){k=sk(k);mem[k]=v;try{if(v===''||v==null)localStorage.removeItem(k);else localStorage.setItem(k,v);}catch(e){}}
 var mem={};
 function api(fn){
   var args=[].slice.call(arguments,1);
@@ -236,7 +245,7 @@ function canIn(m){return m.canCheckIn!=null?m.canCheckIn:(!m.status&&m.open);}
 function isIn(m){return m.checkedIn!=null?m.checkedIn:(m.status==='Present'||m.status==='Late');}
 function athleteStart(){
   if(!A.sid){A.view='id';return renderAthlete();}
-  A.view='home';A.busy=true;A.err='';A.xerr='';A.what='auto';renderAthlete();
+  A.view='home';A.busy=true;A.err='';A.xerr='';A.what='auto';A.cyc=false;renderAthlete();
   api('athleteState',A.sid,deviceId()).then(function(r){
     if(!r.ok){
       A.busy=false;
@@ -340,7 +349,15 @@ function weightHtml(){
   var h='<div class="card"><h2>Weigh-in (pounds)</h2>'+one('pre','Before practice',m.pre)+one('post','After practice',m.post);
   if(m.pre&&m.post)h+='<div class="saved">Change today: '+(Number(m.change)>0?'+':'')+E(m.change)+' lb</div>';
   if(A.msg.wt)h+='<div class="'+(A.msg.wtBad?'err':'saved')+'" style="margin-top:8px">'+E(A.msg.wt)+'</div>';
-  return h+'</div>';
+  return h+cycleHtml()+'</div>';
+}
+/* Only sent by the Sheet to the phone that checked this athlete in today, and only for a team that uses it.
+   It stays folded until she opens it, because this screen gets shown to coaches and teammates as proof of check-in. */
+function cycleHtml(){
+  var c=A.me&&A.me.cycle; if(!c)return '';
+  return '<button class="fold" data-a="cycFold" aria-expanded="'+(A.cyc?'true':'false')+'" aria-controls="cycp"><span>Cycle log</span><small>Private · '+(A.cyc?'tap to close':'tap to open')+'</small></button>'+
+    '<div class="cyc" id="cycp"'+(A.cyc?'':' hidden')+'><label class="check" for="cyc"><input type="checkbox" id="cyc" data-c="cyc"'+(c.on?' checked':'')+'><span>On cycle today</span></label>'+
+    '<div id="cycst" class="hint">Your choice. It goes only to your coach\'s private log, never to the team list.</div></div>';
 }
 function busHtml(){
   var m=A.me; if(!m||!m.trip||A.busy)return '';
@@ -369,7 +386,7 @@ function coachStart(){
   renderLoading('Opening coach screens…');
   api('coachLogin',C.pin).then(function(r){
     if(!r.ok){ if(r.error==='PIN'){set('wp_pin','');C.pin='';return renderLogin('');} return renderLoading(r.message,true); }
-    BOOT.today=r.today;C.date=r.today;go('today');
+    BOOT.today=r.today;C.date=r.today;C.cycle=!!r.cycle;go('today');
   });
 }
 function renderLoading(msg,retry){$app.innerHTML=head('Coach')+'<div class="pad"><div class="hero info">'+(retry?'':'<div class="spin"></div>')+'<div class="d">'+E(msg)+'</div></div>'+(retry?'<button class="btn" data-a="coachRetry">Try again</button>':'')+'</div>';}
@@ -386,7 +403,7 @@ function nav(){
   return '<nav class="nav"><div>'+tabs.map(function(t){return '<button data-a="tab" data-t="'+t[0]+'" class="'+(C.tab===t[0]?'on':'')+'"'+(C.tab===t[0]?' aria-current="page"':'')+'><i aria-hidden="true">'+t[1]+'</i>'+t[2]+'</button>';}).join('')+'</div></nav>';
 }
 function go(tab){
-  C.tab=tab;C.err='';C.sticky={};C.ath=null;C.sess=null;clearTimeout(toast.t);$toast.className='';
+  C.tab=tab;C.err='';C.sticky={};C.ath=null;C.sess=null;C.cyc=null;clearTimeout(toast.t);$toast.className='';
   if(tab==='today'||tab==='weights'){loadDay(true);}
   else if(tab==='bus'){C.trip=null;C.form=null;if(C.date!==BOOT.today){C.date=BOOT.today;C.day=null;C.filter='';}loadTrips();if(!C.day)loadDay(false,true);}
   else if(tab==='reports'){setRange(C.range);}
@@ -775,6 +792,7 @@ function setRange(r){
 function pcCls(p){return p==null?'':p>=90?'g':p>=75?'y':'r';}
 function strip(marks,max){var m=marks.slice(-max);return '<span class="marks" aria-hidden="true">'+m.split('').map(function(c){return '<i class="m-'+c+'"></i>';}).join('')+'</span>';}
 function renderReports(){
+  if(C.cyc)return renderCycle();
   if(C.ath)return renderAthlete2();
   var h='<div class="top"><h1>'+E(BOOT.team)+' · Reports</h1><div class="sub">For one day, use the Today tab and the ‹ › arrows.</div></div><div class="pad">';
   h+='<div class="chips">'+[['week','This week'],['lastweek','Last week'],['month','This month'],['season','Season']].map(function(x){return '<button class="chip'+(C.range===x[0]?' on':'')+'" data-a="range" data-r="'+x[0]+'">'+x[1]+'</button>';}).join('')+'</div>';
@@ -799,7 +817,77 @@ function renderReports(){
     }).join('')+'</div><p class="hint">Excused days do not count against the percentage. Late counts as attended.</p>'+
     '<button class="btn sec" data-a="export" style="margin-top:12px">Send this report to the Sheet</button>';
   }
+  if(C.cycle)h+='<button class="btn ghost" data-a="cycOpen" style="margin-top:12px">Cycle log · needs the Health PIN</button>';
   $app.innerHTML=h+'</div>'+nav();
+}
+
+/* ---------- cycle log (only for a team whose Sheet has it turned on; opened with a second PIN every time) ---------- */
+function cycClose(){C.cyc=null;closeSheet();if(C.tab!=='reports')return;if(C.rep)renderReports();else setRange(C.range);}
+function loadCycle(reopen){
+  var X=C.cyc; if(!X)return;
+  api('coachCycle',C.pin,X.pin).then(function(r){
+    if(!guard(r)||C.cyc!==X)return;
+    X.busy=false;
+    if(!r.ok){X.data=null;X.pin='';X.err=needsScript(r);closeSheet();return renderCycle();}
+    X.err='';X.data=r;renderCycle();
+    if(reopen)cycSheet(reopen);
+  });
+}
+function cycSave(fn,id,arg1,arg2,reopen,done){
+  var X=C.cyc; if(!X)return;
+  closeSheet();
+  var args=['coachCycle'+fn,C.pin,X.pin,id]; if(arg1!==undefined)args.push(arg1); if(arg2!==undefined)args.push(arg2);
+  api.apply(null,args).then(function(r){
+    if(!guard(r)||C.cyc!==X)return;
+    if(!r.ok){toast('NOT SAVED: '+needsScript(r),null,true); if(r.error==='HPIN'||r.error==='HPIN_LOCKED'){X.data=null;X.pin='';X.err=r.message;return renderCycle();} return loadCycle(id);}
+    if(!reopen)toast(done||'Saved.');   // when her sheet reopens, the sheet itself shows what changed
+    loadCycle(reopen?id:'');
+  });
+}
+function spanTxt(s,today){
+  var a=nice(s.from), b=s.open?'today':nice(s.to);
+  return (s.from===s.to?a:a+' – '+b)+' · '+(s.open?'day '+s.days+' so far':s.days+(s.days===1?' day':' days'));
+}
+function renderCycle(){
+  var X=C.cyc, h='<div class="top"><h1>'+E(BOOT.team)+' · Cycle log</h1><div class="sub">Private. As each athlete reported it.</div></div><div class="pad">';
+  if(!X.data){
+    h+='<div class="card"><label class="l" for="hpin" style="font-size:22px">Health PIN</label>'+
+       '<input id="hpin" class="field big-id" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="12"'+(X.busy?' disabled':'')+'>'+(X.err?'<div class="err">'+E(X.err)+'</div>':'')+
+       '<p class="hint">A second PIN, kept in the Config tab of the Sheet. It is asked for every time, so this log stays with the coach who should see it.</p></div>'+
+       '<button class="btn" data-a="cycGo"'+(X.busy?' disabled':'')+'>'+(X.busy?'Opening…':'Open the cycle log')+'</button><button class="btn ghost" data-a="cycBack">‹ Back to reports</button>';
+    $app.innerHTML=h+'</div>'+nav();
+    var f=document.getElementById('hpin'); if(f&&!X.busy)f.focus();
+    return;
+  }
+  var d=X.data, yes=d.athletes.filter(function(a){return a.consent;}), no=d.athletes.filter(function(a){return !a.consent;}), on=yes.filter(function(a){return a.today;});
+  h+='<button class="btn ghost" data-a="cycBack" style="margin-bottom:12px">‹ Close the cycle log</button>';
+  h+='<div class="kv"><div class="tile"><b>'+on.length+'</b><span>On cycle today</span></div><div class="tile"><b>'+yes.length+'</b><span>Consent on file</span></div><div class="tile"><b>'+no.length+'</b><span>No form yet</span></div></div>';
+  h+='<div class="note">Each athlete marks this herself after she checks in, so a day with no check-in is blank. Days 3 or fewer apart are shown as one period.</div>';
+  function row(a){
+    var s=a.spans[0], sm=!a.consent?(s?'Has logged days · box is off':'Box is off'):!s?'Nothing logged yet':(a.today?'':'Last: ')+spanTxt(s);
+    return '<button class="row'+(a.today?' s-E':'')+'" data-a="cycAth" data-id="'+E(a.id)+'"><span class="nm">'+E(a.name)+'<small>'+E(sm)+'</small></span>'+
+      '<span class="pill '+(a.today?'p-E':'p-none')+'">'+(a.today?'On now':a.consent?'Open':'Add')+'</span></button>';
+  }
+  h+='<div class="sech">Consent form on file · '+yes.length+'</div><div class="rows">'+(yes.length?yes.slice().sort(function(a,b){return (b.today-a.today)||(a.name<b.name?-1:1);}).map(row).join(''):'<div class="empty">No one yet. An athlete gets the "On cycle today" box only after you mark her parent\'s consent form as on file below.</div>')+'</div>';
+  if(no.length)h+='<div class="sech">No consent form yet · '+no.length+'</div><div class="rows">'+no.map(row).join('')+'</div>';
+  $app.innerHTML=h+'</div>'+nav();
+}
+function cycSheet(id){
+  var X=C.cyc, a=X&&X.data&&X.data.athletes.filter(function(x){return x.id===id;})[0]; if(!a)return;
+  var h='<h3>'+E(a.name)+'</h3>', erase=a.spans.length?'<button class="btn danger" data-a="cycEraseAsk" data-id="'+E(id)+'">Erase her whole log</button>':'';
+  if(!a.consent){
+    h+='<p>Her "On cycle today" box is off. Turn it on only when her parent\'s signed consent form is on file.</p>'+
+       '<button class="btn" data-a="cycConsent" data-id="'+E(id)+'" data-on="1">The consent form is on file — turn it on</button>'+erase+'<button class="btn ghost" data-a="close">Close</button>';
+    return openSheet(h);
+  }
+  h+=a.spans.length?'<ul class="plist">'+a.spans.slice(0,8).map(function(s){
+      return '<li>'+E(spanTxt(s))+(s.dates.length<s.days?'<small>Marked on '+s.dates.length+' of the '+s.days+' days</small>':'')+'</li>';}).join('')+'</ul>'+(a.spans.length>8?'<p>Showing the last 8.</p>':'')
+    :'<p>Nothing logged yet.</p>';
+  h+='<button class="btn '+(a.today?'sec':'')+'" data-a="cycToday" data-id="'+E(id)+'" data-on="'+(a.today?'':'1')+'">'+(a.today?'Not on cycle today — remove today':'Mark on cycle today')+'</button>'+
+     '<label class="l" for="cycd" style="margin-top:16px">Fix another day</label><input id="cycd" class="field" type="date" max="'+E(X.data.today)+'">'+
+     '<div class="grid2" style="margin-top:10px"><button class="btn sec" data-a="cycDay" data-id="'+E(id)+'" data-on="1">On cycle that day</button><button class="btn sec" data-a="cycDay" data-id="'+E(id)+'" data-on="">Not on cycle</button></div><div id="cycerr"></div>'+
+     '<div style="margin-top:16px"><button class="btn ghost" data-a="cycConsent" data-id="'+E(id)+'" data-on="">Consent withdrawn — turn her box off</button>'+erase+'<button class="btn ghost" data-a="close">Close</button></div>';
+  openSheet(h);
 }
 function openAth(id){
   closeSheet();C.tab='reports';C.ath={id:id};renderAthlete2();window.scrollTo(0,0);
@@ -917,6 +1005,10 @@ var act={
     });
   },
   idYes:function(){A.sid=A.cand.id;set('wp_sid',A.sid);A.me=null;athleteStart();},
+  cycFold:function(ds,el){   // opened in place: the page is not redrawn, so a weight being typed is not lost
+    A.cyc=!A.cyc;var p=document.getElementById('cycp'),t=el.querySelector('small');if(p)p.hidden=!A.cyc;
+    el.setAttribute('aria-expanded',A.cyc?'true':'false');if(t)t.textContent='Private · '+(A.cyc?'tap to close':'tap to open');
+  },
   idNo:function(){A.view='id';A.err='';A.cand=null;renderAthlete();},
   'switch':function(){openSheet('<h3>Switch athlete?</h3><p>This phone is set up for '+E(A.me.name)+'. Only switch if this is not your phone setup. One phone can check in one athlete per day.</p><button class="btn danger" data-a="switchYes">Switch athlete</button><button class="btn ghost" data-a="close">Cancel</button>');},
   switchYes:function(){closeSheet();set('wp_sid','');A.sid='';A.me=null;A.err='';A.msg={};A.view='id';renderAthlete();},
@@ -930,7 +1022,7 @@ var act={
   wtSave:function(ds){
     var el=document.getElementById('w'+ds.kind), v=el.value.trim().replace(',','.');
     A.msg={wt:'Saving…'};
-    api('athleteWeight',A.sid,ds.kind,v).then(function(r){
+    api('athleteWeight',A.sid,ds.kind,v,deviceId()).then(function(r){
       if(r.me)A.me=r.me;
       A.msg=r.ok?{wt:v===''?'Cleared.':'Saved ✓'}:{wt:r.message,wtBad:true};
       renderAthlete();
@@ -948,7 +1040,7 @@ var act={
   pinGo:function(){
     var v=(document.getElementById('pin').value||'').trim(); if(!v)return;
     renderLoading('Checking PIN…');
-    api('coachLogin',v).then(function(r){ if(!r.ok)return renderLogin(r.message); C.pin=v;set('wp_pin',v);BOOT.today=r.today;C.date=r.today;go('today'); });
+    api('coachLogin',v).then(function(r){ if(!r.ok)return renderLogin(r.message); C.pin=v;set('wp_pin',v);BOOT.today=r.today;C.date=r.today;C.cycle=!!r.cycle;go('today'); });
   },
   signOut:function(){set('wp_pin','');C.pin='';renderLogin('');},
   tab:function(ds){go(ds.t);},
@@ -1083,6 +1175,19 @@ var act={
     });
   },
   range:function(ds){setRange(ds.r);},
+  cycOpen:function(){C.cyc={pin:'',data:null,err:'',busy:false};renderCycle();window.scrollTo(0,0);},
+  cycBack:function(){cycClose();},
+  cycGo:function(){var v=(document.getElementById('hpin').value||'').trim(); if(!v)return; C.cyc.pin=v;C.cyc.busy=true;C.cyc.err='';renderCycle();loadCycle();},
+  cycAth:function(ds){cycSheet(ds.id);},
+  cycConsent:function(ds){cycSave('Consent',ds.id,!!ds.on,undefined,!!ds.on,'Her box is off. Her logged days are kept until you erase them.');},
+  cycToday:function(ds){cycSave('Mark',ds.id,C.cyc.data.today,!!ds.on,true);},
+  cycDay:function(ds){
+    var v=(document.getElementById('cycd')||{}).value||'';
+    if(!v){var m=document.getElementById('cycerr');if(m)m.innerHTML='<div class="err">Pick the day first.</div>';return;}
+    cycSave('Mark',ds.id,v,!!ds.on,true);
+  },
+  cycEraseAsk:function(ds){var a=C.cyc.data.athletes.filter(function(x){return x.id===ds.id;})[0];openSheet('<h3>Erase the cycle log for '+E(a?a.name:'this athlete')+'?</h3><p>Every day logged for her is deleted from the Sheet. This cannot be undone.</p><button class="btn danger" data-a="cycErase" data-id="'+E(ds.id)+'">Erase her log</button><button class="btn ghost" data-a="cycAth" data-id="'+E(ds.id)+'">Keep it</button>');},
+  cycErase:function(ds){cycSave('Erase',ds.id,undefined,undefined,false,'Her log is erased.');},
   sort:function(ds){C.sort=ds.s;renderReports();},
   'export':function(el){
     toast('Writing the report to the Sheet…');
@@ -1152,6 +1257,16 @@ document.addEventListener('change',function(e){
     if(x&&md){ if(!x.value.trim())x.value='Excused '+md+' for classes '; else x.value=x.value.replace(/^(\s*Excused\s+)\d{1,2}\/\d{1,2}/i,'$1'+md); }
   }
   if(!c)return;
+  if(c==='cyc'){   // saved in place: the page is not redrawn, so a weight being typed is not lost
+    var st=document.getElementById('cycst'); el.disabled=true; if(st){st.className='hint';st.textContent='Saving…';}
+    return api('athleteCycle',A.sid,deviceId(),el.checked).then(function(r){
+      if(r.me)A.me=r.me;
+      if(!A.me||!A.me.cycle)return renderAthlete();
+      var b=document.getElementById('cyc'),t=document.getElementById('cycst');
+      if(b){b.disabled=false;b.checked=!!A.me.cycle.on;}
+      if(t){t.className=r.ok?'saved':'err';t.textContent=r.ok?'Saved ✓':'NOT SAVED. '+r.message;}
+    });
+  }
   if(c==='wt')saveWt(el,false);
   else if(c==='cfg'){api('coachSetConfig',C.pin,el.getAttribute('data-k'),el.value).then(function(r){ if(!guard(r))return; if(!r.ok)return toast('NOT SAVED: '+r.message,null,true); toast('Saved.'); loadDay(false,true); });}
 });
@@ -1165,7 +1280,7 @@ document.addEventListener('keydown',function(e){
   if(e.key==='Escape'&&sheetOpen())return closeSheet();
   if(e.key!=='Enter')return;
   var id=e.target.id;
-  if(id==='sid')act.idNext(); else if(id==='code')act.codeGo(); else if(id==='pin')act.pinGo();
+  if(id==='sid')act.idNext(); else if(id==='code')act.codeGo(); else if(id==='pin')act.pinGo(); else if(id==='hpin')act.cycGo();
   else if(e.target.getAttribute&&e.target.getAttribute('data-c')==='wt')e.target.blur();
 });
 function typing(){var a=document.activeElement;return a&&(a.tagName==='INPUT'||a.tagName==='SELECT');}
@@ -1176,7 +1291,7 @@ setInterval(function(){
   else if(C.tab==='bus'&&C.trip&&C.trip.data&&!C.form)loadTrip(C.trip.id,true);
 },15000);
 document.addEventListener('visibilitychange',function(){
-  if(document.hidden)return;
+  if(document.hidden){if(C.cyc)cycClose();return;}
   if(MODE==='athlete'&&A.sid&&A.view==='home'&&!A.busy&&!typing())athleteStart();
 });
 

@@ -7,7 +7,7 @@
     getLastColumn: function () { return this.data.reduce(function (m, r) { return Math.max(m, r.length); }, 0); },
     appendRow: function (a) { this.data.push(a.map(String)); },
     deleteRow: function (n) { this.data.splice(n - 1, 1); },
-    setFrozenRows: function () {}, clearContents: function () { this.data = []; },
+    setFrozenRows: function () {}, clearContents: function () { this.data = []; }, hideSheet: function () { this.hidden = true; },
     getDataRange: function () { var s = this; return { getDisplayValues: function () { var w = Math.max(1, s.getLastColumn()); if (!s.data.length) return [['']]; return s.data.map(function (r) { var o = r.slice(); while (o.length < w) o.push(''); return o; }); } }; },
     getRange: function (r, c, nr, nc) {
       var s = this; nr = nr || 1; nc = nc || 1;
@@ -40,6 +40,8 @@
   g.LockService = { getScriptLock: function () { return { waitLock: function () {}, releaseLock: function () {} }; } };
   g.ScriptApp = { getService: function () { return { getUrl: function () { return 'https://script.google.com/macros/s/TEST/exec'; } }; } };
   g.Logger = { log: function () {} };
+  g.__cache = {};
+  g.CacheService = { getScriptCache: function () { return { get: function (k) { return Object.prototype.hasOwnProperty.call(g.__cache, k) ? g.__cache[k] : null; }, put: function (k, v) { g.__cache[k] = String(v); }, remove: function (k) { delete g.__cache[k]; } }; } };
   g.__mail = []; g.__mailFail = '';
   g.MailApp = { sendEmail: function (msg) { if (g.__mailFail) throw new Error(g.__mailFail); g.__mail.push(msg); } };
   g.Utilities.newBlob = function (data, type, name) {
