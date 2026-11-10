@@ -1,5 +1,5 @@
 /**
- * WEST POINT WRESTLING - ATTENDANCE, WEIGHTS & BUS CHECK  (data script)
+ * WEST POINT WRESTLING - ATTENDANCE, OPTIONAL SESSIONS, WEIGHTS, TRAVEL ROSTERS & BUS CHECK  (data script)
  *
  * This script lives in the attendance Google Sheet. It only saves and reads rows.
  * The screens athletes and coaches see are the website in this repository.
@@ -20,6 +20,8 @@ var TABS = {
   Attendance: ['Date', 'StudentID', 'Name', 'Status', 'Time', 'Method', 'Note', 'DeviceID', 'UpdatedAt'],
   Weights:    ['Date', 'StudentID', 'Name', 'PreWeight', 'PreTime', 'PostWeight', 'PostTime', 'ChangeLb', 'ChangePct', 'EnteredBy'],
   Schedule:   ['Date', 'Start', 'End', 'Note'],
+  Sessions:   ['SessionID', 'Date', 'Name', 'Start', 'End', 'Created'],
+  SessionLog: ['SessionID', 'Date', 'StudentID', 'Name', 'Session', 'Time', 'Method', 'DeviceID'],
   Trips:      ['TripID', 'Date', 'Name', 'Leg', 'Roster', 'Created', 'DepLat', 'DepLng', 'RetLat', 'RetLng', 'Levels', 'Excuse', 'EmailedAt', 'EmailedTo', 'EmailedKey'],
   TripLog:    ['TripID', 'StudentID', 'Name', 'Leg', 'Status', 'Time', 'Method', 'Note'],
   Config:     ['Key', 'Value', 'What it does']
@@ -186,7 +188,12 @@ function athleteState(studentId, deviceId) {
   });
 }
 
-function athleteCheckIn(studentId, deviceId, proof) {
+/**
+ * One scan checks the athlete into whatever is open.
+ *   what 'auto'  : practice if practice check-in is open; otherwise the optional session that is open.
+ *   what 'extra' : the open optional session only (the athlete tapped "also here for ...").
+ */
+function athleteCheckIn(studentId, deviceId, proof, what) {
   return safe_(function () {
     var a = athlete_(studentId);
     if (!a) return { ok: false, error: 'NOT_FOUND', message: 'That ID is not on the wrestling roster. See Coach.' };
@@ -194,15 +201,25 @@ function athleteCheckIn(studentId, deviceId, proof) {
     var day = today_();
     return locked_(function () {
       var existing = find_('Attendance', function (r) { return r.Date === day && r.StudentID === a.id; });
-      if (existing && (existing.Status === 'Present' || existing.Status === 'Late')) return { ok: true, already: true, me: stateFor_(a, deviceId) };
-      var w = window_();
-      if (!w.open) return { ok: false, error: 'CLOSED', message: w.reason, me: stateFor_(a, deviceId) };
+      var inPractice = !!existing && (existing.Status === 'Present' || existing.Status === 'Late');
+      var w = window_(), s = openSession_();
+      var inS = !!s && !!find_('SessionLog', function (r) { return r.SessionID === s.SessionID && r.StudentID === a.id; });
+      var doPractice = what !== 'extra' && w.open && !existing;
+      var doExtra = !!s && !inS && (what === 'extra' || !w.open);
+      if (!doPractice && !doExtra) {
+        if (what === 'extra') return inS ? { ok: true, already: true, me: stateFor_(a, deviceId) }
+                                         : { ok: false, error: 'CLOSED', message: 'That session is closed. See Coach to be added.', me: stateFor_(a, deviceId) };
+        if (inPractice || inS || find_('SessionLog', function (r) { return r.Date === day && r.StudentID === a.id; })) return { ok: true, already: true, me: stateFor_(a, deviceId) };
+        if (existing) return { ok: false, error: 'MARKED', message: 'Coach marked you ' + existing.Status + ' today. If that is wrong, see Coach.', me: stateFor_(a, deviceId) };
+        return { ok: false, error: 'CLOSED', message: w.reason, me: stateFor_(a, deviceId) };
+      }
       var pr = presence_(schoolAnchor_(), proof, day);
       if (!pr.ok) return { ok: false, error: pr.error, message: pr.message, me: stateFor_(a, deviceId) };
-      var other = deviceId && find_('Attendance', function (r) { return r.Date === day && r.DeviceID === deviceId && r.StudentID !== a.id && /^Self/.test(r.Method); });
+      var mine = function (r) { return r.Date === day && r.DeviceID === deviceId && r.StudentID !== a.id && /^Self/.test(r.Method); };
+      var other = deviceId && (find_('Attendance', mine) || find_('SessionLog', mine));
       if (other) return { ok: false, error: 'DEVICE', message: 'This phone already checked in ' + other.Name + ' today. One phone, one athlete. See Coach to be marked here.', me: stateFor_(a, deviceId) };
-      var rec = { Date: day, StudentID: a.id, Name: a.name, Status: w.late ? 'Late' : 'Present', Time: nowTime_(), Method: 'Self-' + pr.by, Note: '', DeviceID: deviceId || '', UpdatedAt: stamp_() };
-      if (existing) update_('Attendance', existing._row, rec); else append_('Attendance', rec);
+      if (doPractice) append_('Attendance', { Date: day, StudentID: a.id, Name: a.name, Status: w.late ? 'Late' : 'Present', Time: nowTime_(), Method: 'Self-' + pr.by, Note: '', DeviceID: deviceId || '', UpdatedAt: stamp_() });
+      if (doExtra) append_('SessionLog', { SessionID: s.SessionID, Date: day, StudentID: a.id, Name: a.name, Session: s.Name, Time: nowTime_(), Method: 'Self-' + pr.by, DeviceID: deviceId || '' });
       return { ok: true, me: stateFor_(a, deviceId) };
     });
   });
@@ -213,7 +230,8 @@ function athleteWeight(studentId, kind, value) {
     var a = athlete_(studentId);
     if (!a) return { ok: false, error: 'NOT_FOUND', message: 'That ID is not on the roster. See Coach.' };
     var att = find_('Attendance', function (r) { return r.Date === today_() && r.StudentID === a.id; });
-    if (!att || (att.Status !== 'Present' && att.Status !== 'Late')) return { ok: false, error: 'NOT_IN', message: 'Check in first. Your weight is saved only when you are checked in for today.', me: stateFor_(a, '') };
+    var inSession = find_('SessionLog', function (r) { return r.Date === today_() && r.StudentID === a.id; });
+    if (!inSession && (!att || (att.Status !== 'Present' && att.Status !== 'Late'))) return { ok: false, error: 'NOT_IN', message: 'Check in first. Your weight is saved only when you are checked in for today.', me: stateFor_(a, '') };
     var r = saveWeight_(today_(), a, kind, value, 'Athlete');
     if (!r.ok) return r;
     return { ok: true, me: stateFor_(a, '') };
@@ -251,7 +269,16 @@ function stateFor_(a, deviceId) {
     var log = find_('TripLog', function (r) { return r.TripID === t.TripID && r.Leg === t.Leg && r.StudentID === a.id; });
     trip = { name: t.Name, leg: t.Leg, status: log ? log.Status : '', time: log ? log.Time : '' };
   }
+  var s = openSession_();
+  var logs = read_('SessionLog').rows.filter(function (r) { return r.Date === day && r.StudentID === a.id; });
+  var inS = !!s && logs.some(function (r) { return r.SessionID === s.SessionID; });
+  var inPractice = !!att && (att.Status === 'Present' || att.Status === 'Late');
   return {
+    // canCheckIn: a scan right now would check this athlete into something. session.offer: show the "also here for ..." button.
+    canCheckIn: !a.staff && ((w.open && !att) || (!!s && !inS && !w.open)),
+    checkedIn: inPractice || logs.length > 0,
+    session: s ? { name: s.Name, until: normTime_(s.End), 'in': inS, offer: !a.staff && !inS && w.open && !!att } : null,
+    extras: logs.map(function (r) { return { name: r.Session, time: r.Time }; }),
     id: a.id, first: a.first, name: a.first + ' ' + a.last, date: day, staff: !!a.staff,
     status: att ? att.Status : '', time: att ? att.Time : '',
     open: w.open, closedReason: w.open ? '' : w.reason, presence: presenceMode_(), practice: w.practice ? { start: w.practice.start, end: w.practice.end, note: w.practice.note } : null,
@@ -274,14 +301,17 @@ function coachDay(pin, date) {
     read_('Attendance').rows.forEach(function (r) { if (r.Date === day) att[r.StudentID] = r; });
     read_('Weights').rows.forEach(function (r) { if (r.Date === day) wts[r.StudentID] = r; });
     var lastW = lastWeights_(day);
+    var slogs = read_('SessionLog').rows.filter(function (l) { return l.Date === day; }), xs = {};
+    slogs.forEach(function (l) { (xs[l.StudentID] = xs[l.StudentID] || []).push(l.Session); });
     var list = wrestlers_().map(function (a) {
       var r = att[a.id] || {}, w = wts[a.id] || {};
-      return { id: a.id, name: a.last + ', ' + a.first, grade: a.grade, cleared: a.cleared, injured: a.injured,
+      return { id: a.id, name: a.last + ', ' + a.first, grade: a.grade, cleared: a.cleared, injured: a.injured, x: xs[a.id] || [],
                status: r.Status || '', time: r.Time || '', method: r.Method || '', note: r.Note || '',
                pre: w.PreWeight || '', post: w.PostWeight || '', chg: w.ChangeLb || '', pct: w.ChangePct || '', last: lastW[a.id] || '' };
     });
     var w = window_();
     return { ok: true, date: day, today: today_(), isToday: day === today_(), athletes: list,
+             sessions: sessionsOn_(day).map(function (x) { return sessionInfo_(x, slogs); }),
              presence: presenceMode_(), schoolSet: !!schoolAnchor_(), code: roomCode_(day),
              open: w.open, closedReason: w.reason || '', practice: w.practice || null, todayOverride: !!find_('Schedule', function (r) { return r.Date === today_(); }),
              flagPct: Number(cfg_('WEIGHT_LOSS_FLAG_PCT')) || 3,
@@ -449,6 +479,9 @@ function report_(from, to) {
     map[r.StudentID + '|' + r.Date] = r.Status;
   });
   var days = Object.keys(dates).sort();
+  var xs = {}, held = 0;   // optional sessions: counted on their own, never for or against the percentage
+  read_('SessionLog').rows.forEach(function (l) { if (l.Date >= from && l.Date <= to) xs[l.StudentID] = (xs[l.StudentID] || 0) + 1; });
+  read_('Sessions').rows.forEach(function (x) { if (x.Date >= from && x.Date <= to) held++; });
   var rows = wrestlers_().map(function (a) {
     var c = { P: 0, L: 0, E: 0, A: 0 }, marks = [];
     days.forEach(function (d) {
@@ -457,10 +490,10 @@ function report_(from, to) {
       c[k]++; marks.push(k);
     });
     var counted = days.length - c.E;
-    return { id: a.id, name: a.last + ', ' + a.first, grade: a.grade, P: c.P, L: c.L, E: c.E, A: c.A,
+    return { id: a.id, name: a.last + ', ' + a.first, grade: a.grade, P: c.P, L: c.L, E: c.E, A: c.A, x: xs[a.id] || 0,
              pct: counted > 0 ? Math.round(100 * (c.P + c.L) / counted) : null, marks: marks.join('') };
   });
-  return { ok: true, from: from, to: to, days: days, rows: rows };
+  return { ok: true, from: from, to: to, days: days, rows: rows, sessions: held };
 }
 
 function coachAthlete(pin, studentId) {
@@ -478,7 +511,10 @@ function coachAthlete(pin, studentId) {
     var weights = read_('Weights').rows.filter(function (r) { return r.StudentID === a.id; })
       .map(function (r) { return { date: r.Date, pre: r.PreWeight, post: r.PostWeight, chg: r.ChangeLb, pct: r.ChangePct }; })
       .sort(function (x, y) { return x.date < y.date ? 1 : -1; });
-    return { ok: true, id: a.id, name: a.first + ' ' + a.last, grade: a.grade, cleared: a.cleared, active: a.active, today: today_(), days: days, weights: weights,
+    var extras = read_('SessionLog').rows.filter(function (l) { return l.StudentID === a.id; })
+      .map(function (l) { return { date: l.Date, name: l.Session, time: l.Time }; })
+      .sort(function (x, y) { return x.date < y.date ? 1 : x.date > y.date ? -1 : 0; });
+    return { ok: true, id: a.id, name: a.first + ' ' + a.last, grade: a.grade, cleared: a.cleared, active: a.active, today: today_(), days: days, weights: weights, extras: extras,
              flagPct: Number(cfg_('WEIGHT_LOSS_FLAG_PCT')) || 3 };
   });
 }
@@ -489,10 +525,10 @@ function coachExport(pin, from, to) {
     var rep = report_(normDate_(from), normDate_(to));
     var ss = ss_(), sh = ss.getSheetByName('Report') || ss.insertSheet('Report');
     sh.clearContents();
-    var head = ['Athlete', 'Grade', 'Present', 'Late', 'Excused', 'Absent', 'Attendance %'].concat(rep.days.map(function (d) { return d.slice(5); }));
+    var head = ['Athlete', 'Grade', 'Present', 'Late', 'Excused', 'Absent', 'Attendance %', 'Optional sessions'].concat(rep.days.map(function (d) { return d.slice(5); }));
     var out = [head];
     rep.rows.forEach(function (r) {
-      out.push([r.name, r.grade, r.P, r.L, r.E, r.A, r.pct == null ? '' : r.pct + '%'].concat(r.marks.split('')));
+      out.push([r.name, r.grade, r.P, r.L, r.E, r.A, r.pct == null ? '' : r.pct + '%', r.x].concat(r.marks.split('')));
     });
     sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).setNumberFormat('@');
     sh.getRange(1, 1, out.length, head.length).setValues(out.map(function (row) { return row.map(String); }));
@@ -500,6 +536,91 @@ function coachExport(pin, from, to) {
     sh.setFrozenRows(1);
     return { ok: true, url: ss.getUrl(), rows: rep.rows.length, days: rep.days.length };
   });
+}
+
+/* ---------- optional sessions (weight room, Saturday recovery): tracked, never counted for or against attendance ---------- */
+
+/** Starts a session athletes can check into right now. For a past date it makes a closed session to fill in by hand. */
+function coachSessionStart(pin, name, minutes, date) {
+  return coach_(pin, function () {
+    name = String(name || '').replace(/\s+/g, ' ').trim().slice(0, 40);
+    if (!name) return { ok: false, message: 'Give the session a name, like "Weight room".' };
+    var day = normDate_(date) || today_(), live = day === today_();
+    if (day > today_()) return { ok: false, message: 'A session is started on the day it happens.' };
+    var mins = Math.min(360, Math.max(15, Number(minutes) || 60));
+    return locked_(function () {
+      var cur = live && openSession_();
+      if (cur) return { ok: false, error: 'OPEN', message: cur.Name + ' is still open. Close it first.' };
+      var id = 'S' + stamp_().replace(/\D/g, '').slice(2, 14);
+      append_('Sessions', { SessionID: id, Date: day, Name: name, Start: live ? nowTime_() : '', End: live ? mm_(Math.min(1439, nowMins_() + mins)) : '', Created: stamp_() });
+      return { ok: true, id: id };
+    });
+  });
+}
+
+function coachSessionClose(pin, id) {
+  return coach_(pin, function () {
+    return locked_(function () {
+      var x = find_('Sessions', function (r) { return r.SessionID === id; });
+      if (!x) return { ok: false, message: 'Session not found.' };
+      if (sessionOpen_(x)) update_('Sessions', x._row, { End: mm_(Math.max(0, nowMins_() - 1)) });
+      return { ok: true };
+    });
+  });
+}
+
+function coachSessionDelete(pin, id) {
+  return coach_(pin, function () {
+    return locked_(function () {
+      var x = find_('Sessions', function (r) { return r.SessionID === id; });
+      if (x) deleteRow_('Sessions', x._row);
+      read_('SessionLog').rows.filter(function (l) { return l.SessionID === id; }).map(function (l) { return l._row; })
+        .sort(function (a, b) { return b - a; }).forEach(function (r) { deleteRow_('SessionLog', r); });
+      return { ok: true };
+    });
+  });
+}
+
+/** One session with every wrestler and whether they were in it. */
+function coachSession(pin, id) {
+  return coach_(pin, function () {
+    var x = find_('Sessions', function (r) { return r.SessionID === id; });
+    if (!x) return { ok: false, message: 'Session not found.' };
+    var logs = read_('SessionLog').rows.filter(function (l) { return l.SessionID === id; }), by = {};
+    logs.forEach(function (l) { by[l.StudentID] = l; });
+    return { ok: true, session: sessionInfo_(x, logs), today: today_(), athletes: wrestlers_().map(function (a) {
+      var l = by[a.id];
+      return { id: a.id, name: a.last + ', ' + a.first, grade: a.grade, 'in': !!l, time: l ? l.Time : '', method: l ? l.Method : '' };
+    }) };
+  });
+}
+
+/** Coach adds (on = true) or removes one athlete by hand. */
+function coachSessionMark(pin, id, studentId, on) {
+  return coach_(pin, function () {
+    var a = athlete_(studentId, true);
+    if (!a) return { ok: false, message: 'Athlete not found.' };
+    return locked_(function () {
+      var x = find_('Sessions', function (r) { return r.SessionID === id; });
+      if (!x) return { ok: false, message: 'Session not found.' };
+      var l = find_('SessionLog', function (r) { return r.SessionID === id && r.StudentID === a.id; });
+      if (on && !l) append_('SessionLog', { SessionID: id, Date: x.Date, StudentID: a.id, Name: a.name, Session: x.Name, Time: x.Date === today_() ? nowTime_() : '', Method: 'Coach', DeviceID: '' });
+      if (!on && l) deleteRow_('SessionLog', l._row);
+      return { ok: true };
+    });
+  });
+}
+
+function sessionsOn_(day) { return read_('Sessions').rows.filter(function (x) { return x.Date === day; }); }
+function sessionOpen_(x) {
+  if (x.Date !== today_() || !x.Start || !x.End) return false;
+  var m = nowMins_();
+  return m >= hm_(normTime_(x.Start), 0) && m <= hm_(normTime_(x.End), -1);
+}
+function openSession_() { return sessionsOn_(today_()).filter(sessionOpen_)[0] || null; }
+function sessionInfo_(x, logs) {
+  var n = (logs || read_('SessionLog').rows).filter(function (l) { return l.SessionID === x.SessionID; }).length;
+  return { id: x.SessionID, date: x.Date, name: x.Name, start: x.Start ? normTime_(x.Start) : '', end: x.End ? normTime_(x.End) : '', open: sessionOpen_(x), count: n };
 }
 
 /* ---------- trips / bus ---------- */
@@ -1080,6 +1201,7 @@ var API_ = {
   coachLogin: coachLogin, coachDay: coachDay, coachMark: coachMark, coachWeight: coachWeight, coachSetConfig: coachSetConfig,
   coachSetSchool: coachSetSchool, coachTripAnchor: coachTripAnchor, coachSchedule: coachSchedule, coachSetDay: coachSetDay, coachFillWeeks: coachFillWeeks,
   coachAddAthlete: coachAddAthlete, coachSetActive: coachSetActive, coachRoster: coachRoster,
+  coachSessionStart: coachSessionStart, coachSessionClose: coachSessionClose, coachSessionDelete: coachSessionDelete, coachSession: coachSession, coachSessionMark: coachSessionMark,
   coachReport: coachReport, coachAthlete: coachAthlete, coachExport: coachExport,
   coachTravelPeople: coachTravelPeople, coachTravelPdf: coachTravelPdf, coachTravelEmail: coachTravelEmail,
   coachTrips: coachTrips, coachTripSave: coachTripSave, coachTrip: coachTrip, coachTripMark: coachTripMark,

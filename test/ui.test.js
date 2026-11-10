@@ -14,7 +14,10 @@ const {chromium}=require('playwright');const path=require('path');const assert=r
     function persist(){var o={};Object.keys(__book.sheets).forEach(function(k){o[k]=__book.sheets[k].data;});sessionStorage.book=JSON.stringify(o);}
     window.__fail=false; window.WP_TEAM='West Point Wrestling'; window.WP_API='https://mock.invalid/exec';
     window.__realFetch=window.fetch.bind(window);
-    window.fetch=function(u,o){return new Promise(function(res,rej){setTimeout(function(){if(window.__fail)return rej(new TypeError('net'));var out=doPost({postData:{contents:o.body}});persist();res({ok:true,json:function(){return Promise.resolve(JSON.parse(out.__text));}});},120);});};</script>`;
+    window.fetch=function(u,o){return new Promise(function(res,rej){setTimeout(function(){if(window.__fail)return rej(new TypeError('net'));var out=doPost({postData:{contents:o.body}});persist();var j=JSON.parse(out.__text);
+      if(q.get('old')){var rq=JSON.parse(o.body);if(/^coach(Session|Travel)/.test(rq.fn))j={ok:false,error:'BAD',message:'Unknown request. The app may need to be reloaded.'};
+        if(j.me){['canCheckIn','checkedIn','session','extras','staff'].forEach(function(k){delete j.me[k];});}delete j.sessions;delete j.travel;}
+      res({ok:true,json:function(){return Promise.resolve(j);}});},120);});};</script>`;
     const out=html.replace('<script src="config.js"></script>',()=>shim).replace('src="qrcode.js"','src="../qrcode.js"');
     if(out===html)throw new Error('harness injection failed');
     fs.writeFileSync(path.join(__dirname,'harness.html'),out);
@@ -160,6 +163,41 @@ const {chromium}=require('playwright');const path=require('path');const assert=r
   await p.evaluate(()=>localStorage.setItem('wp_pin','123456'));await p.goto(U+'?p=coach&now=2026-11-05T22:58:00Z');await p.waitForSelector('.row');
   const small=await p.evaluate(()=>[].slice.call(document.querySelectorAll('button,input,a')).filter(e=>e.offsetParent).map(e=>({t:(e.innerText||e.id||'').slice(0,20),h:Math.round(e.getBoundingClientRect().height),w:Math.round(e.getBoundingClientRect().width)})).filter(x=>x.h<44||x.w<44));
   ok(small.length===0,'small targets: '+JSON.stringify(small));
+  // ---- optional sessions: coach starts a weight room session before practice check-in opens (3:00 PM; practice 4:00, check-in 3:30)
+  const fresh=async(sid,now,extra)=>{await p.evaluate(s=>{localStorage.clear();if(s)localStorage.setItem('wp_sid',s);},sid);await p.goto(U+'?now='+now+(extra||''));};
+  await p.evaluate(()=>localStorage.setItem('wp_pin','123456'));await p.goto(U+'?p=coach&now=2026-11-05T22:00:00Z');await p.waitForSelector('[data-a=sessNew]');
+  await p.click('[data-a=sessNew]');await p.waitForSelector('#sheet.open');ok((await p.inputValue('#sname'))==='Weight room','session name is prefilled');
+  await p.click('[data-a=sessDur][data-m="120"]');await p.click('[data-a=sessStart]');await p.waitForSelector('[data-a=sessOpen]');
+  ok(/Weight room · optional · open until 5:00 PM/.test(await p.innerText('[data-a=sessOpen]'))&&(await p.innerText('[data-a=sessOpen]')).includes('0 in')&&!(await p.isVisible('[data-a=sessNew]')),'open session shows on Today: '+(await p.innerText('[data-a=sessOpen]')).replace(/\n/g,' '));
+  await fresh('300112','2026-11-05T22:00:00Z');await p.waitForSelector('.hero.ok');
+  ok((await txt()).includes('Weight room (optional) · 3:00 PM')&&(await txt()).includes('Check-in opens at 3:30 PM. Open this page again then')&&await p.isVisible('#wpre'),'a scan before practice check-in logs the optional session and opens weights');await shot('25-optional-athlete');
+  await p.goto(U+'?now=2026-11-05T22:40:00Z');await p.waitForFunction(()=>document.body.innerText.includes('3:40 PM'));
+  ok((await p.innerText('.hero.ok')).includes('CHECKED IN')&&(await p.innerText('.hero.ok')).includes('Weight room (optional) · 3:00 PM'),'the lifter is then checked in for practice with the weight room still shown');
+  await fresh('300113','2026-11-05T22:40:00Z');await p.waitForSelector('[data-a=extraGo]');
+  ok((await p.innerText('.hero.ok')).includes('CHECKED IN')&&!(await txt()).includes('✓ Weight room'),'arriving for practice does not log the optional session by itself');await shot('26-optional-offer');
+  await p.click('[data-a=extraGo]');await p.waitForFunction(()=>document.body.innerText.includes('✓ Weight room (optional)'));ok(!(await p.isVisible('[data-a=extraGo]')),'one tap adds it');
+  await p.evaluate(()=>localStorage.setItem('wp_pin','123456'));await p.goto(U+'?p=coach&now=2026-11-05T22:45:00Z');await p.waitForSelector('[data-a=sessOpen]');
+  ok((await p.innerText('[data-a=sessOpen]')).includes('2 in'),'coach sees the count');
+  await p.click('.t-here');await p.waitForTimeout(200);ok((await p.innerText('.row[data-id="300112"]')).includes('+ Weight room'),'attendance row is tagged with the optional session');
+  await p.click('[data-a=sessOpen]');await p.waitForSelector('#slist .row');ok((await p.locator('#slist .row.s-P').count())===2&&(await p.locator('#slist .row').count())===19,'session list');await shot('27-optional-coach');
+  await p.click('#slist .row[data-id="300115"]');await p.waitForFunction(()=>document.getElementById('sin').innerText==='In · 3');
+  await p.click('[data-a=sessFilter][data-f=in]');await p.waitForFunction(()=>document.querySelectorAll('#slist .row').length===3);ok(true,'coach adds by hand; the In filter works');
+  await p.waitForTimeout(400);await p.click('#slist .row[data-id="300115"]');await p.waitForSelector('#sheet.open');await p.click('[data-a=sessOut]');await p.waitForFunction(()=>document.getElementById('sin').innerText==='In · 2');ok(true,'taking someone out asks first');
+  await p.click('[data-a=sessClose]');await p.waitForFunction(()=>/ended/.test(document.querySelector('.top .sub').innerText));ok(!(await p.isVisible('[data-a=sessClose]')),'coach closes the session');
+  await p.click('[data-a=sessBack]');await p.waitForSelector('[data-a=sessNew]');ok(/Weight room · optional · ended/.test(await p.innerText('[data-a=sessOpen]')),'closed session stays listed for the day');
+  await p.click('.nav [data-t=reports]');await p.waitForSelector('.rep');
+  ok((await txt()).includes('Optional sessions held: 1')&&(await p.innerText('.rep[data-id="300112"]')).includes('+1 optional')&&!(await p.innerText('.rep[data-id="300100"]')).includes('optional'),'report shows optional counts apart from the percentage');
+  await p.click('.rep[data-id="300112"]');await p.waitForSelector('table.t');ok(/optional sessions · 1/i.test(await txt())&&(await txt()).includes('Weight room'),'athlete page lists optional sessions');await shot('28-optional-report');
+  await p.click('.nav [data-t=today]');await p.waitForSelector('.row');await p.click('[data-a=day][data-n="-1"]');await p.waitForFunction(()=>document.querySelector('[data-a=sessNew]')&&document.querySelector('[data-a=sessNew]').innerText.includes('Record an optional session'));
+  await p.click('[data-a=sessNew]');await p.waitForSelector('#sheet.open');ok(!(await p.isVisible('[data-a=sessDur]')),'a past-day session has no timer');
+  await p.click('[data-a=sessName][data-n="Saturday recovery"]');await p.click('[data-a=sessStart]');await p.waitForSelector('#slist .row');
+  ok((await p.innerText('.top')).includes('Saturday recovery')&&(await p.innerText('.top')).includes('entered by hand'),'past-day session opens for hand entry');
+  await p.click('#slist .row[data-id="300100"]');await p.waitForFunction(()=>document.getElementById('sin').innerText==='In · 1');ok(true,'hand entry on a past day');
+  // ---- the website must keep working against the Sheet script from before this update
+  await fresh('300116','2026-11-05T22:50:00Z','&old=1');await p.waitForSelector('.hero.ok');
+  ok((await p.innerText('.hero.ok')).includes('CHECKED IN')&&await p.isVisible('#wpre')&&!(await p.isVisible('[data-a=extraGo]')),'check-in and weights still work with the older Sheet script');
+  await p.evaluate(()=>localStorage.setItem('wp_pin','123456'));await p.goto(U+'?p=coach&old=1&now=2026-11-05T22:50:00Z');await p.waitForSelector('.row');
+  ok(!(await p.isVisible('[data-a=sessNew]'))&&!(await p.isVisible('[data-a=sessOpen]'))&&(await p.innerText('.t-here b'))!=='0','coach screen with the older script: no session buttons, attendance intact');
   ok(errs.length===0,'console errors: '+errs.join(' | '));
   console.log('UI',n,'CHECKS PASSED');await b.close();
 })().catch(e=>{console.error('FAIL after check',global.__n,e.message.split('\n').slice(0,6).join('\n'));process.exit(1);});

@@ -96,7 +96,7 @@ ok(rr('300107').pct===0&&rr('300107').marks==='AA','absent both');
 rep=run(`coachReport('${P}','2026-11-02','2026-11-08')`); ok(rep.days.length===3,'saturday counted in wider range');
 let ath=run(`coachAthlete('${P}','300100')`); ok(ath.ok&&ath.days.filter(d=>d.date<='2026-11-08').length===3&&ath.weights[0].chg==='-5.2','athlete history');
 let ex=run(`coachExport('${P}','2026-11-02','2026-11-06')`); ok(ex.ok&&ex.rows===18&&ex.days===2,'export');
-ok(run("__book.getSheetByName('Report').data[1].slice(0,9).join('|')")==='Alvarez, Marco|9|2|0|0|0|100%|P|P','report grid row');
+ok(run("__book.getSheetByName('Report').data[0].slice(6,8).join('|')")==='Attendance %|Optional sessions'&&run("__book.getSheetByName('Report').data[1].slice(0,10).join('|')")==='Alvarez, Marco|9|2|0|0|0|100%|0|P|P','report grid row');
 // --- roster admin
 ok(run(`coachAddAthlete('${P}',{id:'300999',first:'New',last:'Kid',grade:'9'})`).ok,'add athlete');
 ok(run("athleteState('300999','z')").ok,'new athlete can use app');
@@ -174,6 +174,48 @@ ok(run(`athleteBoard('300110','g3',${here})`).error==='LOC_FAR','still at school
 tr=run(`coachTrip('${P}','${T2}')`); ok(tr.trip.retSet&&tr.riders.find(x=>x.id==='300108').ret.code===true&&tr.riders.find(x=>x.id==='300109').ret.code===false,'trip view shows who used the code');
 run(`coachSetConfig('${P}','PRESENCE_CHECK','Off')`); ok(run("athleteBoard('300110','g3',{})").ok,'off = anywhere');
 ok(run("presence_(null,'"+c2+"','"+D2+"')").ok===true,'off mode ignores everything');
+// --- optional sessions (weight room, Saturday recovery): tracked, never counted for or against attendance
+at('2026-11-14T15:00:00Z');   // Sat Nov 14, 8:00 AM: no practice today
+ok(run("athleteCheckIn('300100','o1',{})").error==='CLOSED'&&run("athleteState('300100','o1')").me.canCheckIn===false,'no practice and no session: closed');
+const S1=run(`coachSessionStart('${P}','Saturday  recovery',120,'')`).id; ok(S1,'session started');
+ok(run("__book.getSheetByName('Sessions').data[0].join()")==='SessionID,Date,Name,Start,End,Created'&&run("__book.getSheetByName('Sessions').data[1].slice(1,5).join('|')")==='2026-11-14|Saturday recovery|08:00|10:00','Sessions tab made on demand');
+ok(run(`coachSessionStart('${P}','Weight room',60,'')`).error==='OPEN'&&run(`coachSessionStart('${P}',' ',60,'')`).ok===false,'one open session at a time; a name is required');
+r=run("athleteState('300100','o1')"); ok(r.me.canCheckIn===true&&r.me.session.name==='Saturday recovery'&&r.me.session.until==='10:00'&&r.me.session.in===false&&r.me.session.offer===false&&r.me.checkedIn===false,'athlete sees the open session');
+r=run("athleteCheckIn('300100','o1',{})"); ok(r.ok&&r.me.extras.length===1&&r.me.extras[0].name==='Saturday recovery'&&r.me.extras[0].time==='08:00'&&r.me.status===''&&r.me.checkedIn===true&&r.me.canCheckIn===false,'a scan checks into the optional session');
+ok(run("find_('Attendance',function(x){return x.Date==='2026-11-14'})")===null,'and writes no practice attendance');
+ok(run("athleteCheckIn('300100','o1',{})").already===true&&run("__book.getSheetByName('SessionLog').data.length")===2,'second scan is harmless');
+ok(run("athleteCheckIn('300101','o1',{})").error==='DEVICE','one phone, one athlete in a session too');
+ok(run("athleteWeight('300100','pre','150')").ok&&run("athleteWeight('300101','pre','150')").error==='NOT_IN','weigh-in opens once checked into the session');
+ok(run(`coachSessionMark('${P}','${S1}','300102',true)`).ok&&run(`coachSessionMark('${P}','${S1}','300102',true)`).ok,'coach adds by hand (twice is harmless)');
+let sv=run(`coachSession('${P}','${S1}')`); ok(sv.session.count===2&&sv.session.open===true&&sv.athletes.length===18&&sv.athletes.find(a=>a.id==='300102').method==='Coach'&&sv.athletes.find(a=>a.id==='300100').method==='Self-Open'&&sv.athletes.find(a=>a.id==='300103').in===false,'session view');
+day=run(`coachDay('${P}','')`); ok(day.sessions.length===1&&day.sessions[0].count===2&&day.sessions[0].open===true&&by('300100').x[0]==='Saturday recovery'&&by('300103').x.length===0&&by('300100').status==='','day view lists the session and who was in it');
+ok(run(`coachSessionMark('${P}','${S1}','300102',false)`).ok&&run(`coachSession('${P}','${S1}')`).session.count===1,'coach removes by hand');
+at('2026-11-14T17:01:00Z'); ok(run("athleteCheckIn('300103','o3',{})").error==='CLOSED'&&run(`coachSession('${P}','${S1}')`).session.open===false,'the session closes on its own at its end time');
+const S2=run(`coachSessionStart('${P}','Open mat',60,'')`).id; ok(S2&&run("athleteCheckIn('300103','o3',{})").ok,'a new session can start after the first closed');
+ok(run(`coachSessionClose('${P}','${S2}')`).ok&&run("athleteCheckIn('300104','o4',{})").error==='CLOSED','coach closes it early');
+ok(run(`coachSessionMark('${P}','${S2}','300104',true)`).ok&&run(`coachSession('${P}','${S2}')`).session.count===2,'coach can still add by hand after it closes');
+rep=run(`coachReport('${P}','2026-11-14','2026-11-14')`);
+ok(rep.days.length===0&&rep.sessions===2&&rep.rows.find(x=>x.id==='300100').x===1&&rep.rows.find(x=>x.id==='300100').pct===null&&rep.rows.find(x=>x.id==='300105').x===0&&rep.rows.find(x=>x.id==='300105').A===0,'an optional session is not a practice day and never makes an absence');
+ath=run(`coachAthlete('${P}','300100')`); ok(ath.extras.length===1&&ath.extras[0].name==='Saturday recovery'&&ath.extras[0].date==='2026-11-14'&&ath.days.every(d=>d.date!=='2026-11-14'),'athlete history lists optional sessions separately');
+at('2026-11-16T22:00:00Z');   // Mon Nov 16, 3:00 PM: practice is at 4:00, practice check-in opens at 3:30
+const S3=run(`coachSessionStart('${P}','Weight room',60,'')`).id;
+r=run("athleteCheckIn('300100','w1',{})"); ok(r.ok&&r.me.extras.length===1&&r.me.status===''&&/Check-in opens at 3:30 PM/.test(r.me.closedReason)&&r.me.practice.start==='16:00','before practice check-in opens, a scan logs the weight room only');
+at('2026-11-16T22:35:00Z');   // 3:35 PM: the weight room session and practice check-in are both open
+ok(run("athleteState('300100','w1')").me.canCheckIn===true,'the lifter can check in for practice once it opens');
+r=run("athleteCheckIn('300100','w1',{})"); ok(r.ok&&r.me.status==='Present'&&r.me.extras.length===1&&r.me.canCheckIn===false,'and is Present, on time, with the weight room still credited');
+r=run("athleteCheckIn('300101','w2',{})"); ok(r.ok&&r.me.status==='Present'&&r.me.extras.length===0&&r.me.session.offer===true&&r.me.canCheckIn===false,'an athlete arriving for practice is not put in the weight room session automatically');
+r=run("athleteCheckIn('300101','w2',{},'extra')"); ok(r.ok&&r.me.extras.length===1&&r.me.session.offer===false,'but can add it with one tap');
+ok(run("athleteCheckIn('300101','w2',{},'extra')").already===true&&run(`coachSession('${P}','${S3}')`).session.count===2,'tapping again is harmless');
+run(`coachMark('${P}','2026-11-16','300103','Absent',null)`);
+r=run("athleteCheckIn('300103','w3',{})"); ok(r.error==='MARKED'&&/Coach marked you Absent/.test(r.message)&&r.me.status==='Absent'&&r.me.canCheckIn===false&&r.me.session.offer===true,'a scan does not overwrite a coach mark');
+rep=run(`coachReport('${P}','2026-11-16','2026-11-16')`);
+ok(rep.days.length===1&&rep.rows.find(x=>x.id==='300100').pct===100&&rep.rows.find(x=>x.id==='300100').x===1&&rep.rows.find(x=>x.id==='300102').pct===0&&rep.rows.find(x=>x.id==='300102').x===0,'practice attendance is unaffected by the optional session');
+at('2026-11-16T23:01:00Z'); ok(run("athleteCheckIn('300104','w4',{},'extra')").error==='CLOSED','the explicit tap is refused once the session has ended');
+const S4=run(`coachSessionStart('${P}','Saturday recovery',60,'2026-11-07')`).id; ok(S4&&run(`coachSession('${P}','${S4}')`).session.open===false,'a past session can be recorded by hand');
+ok(run(`coachSessionStart('${P}','Later',60,'2026-12-25')`).ok===false,'not for future dates');
+run(`coachSessionMark('${P}','${S4}','300100',true)`); ok(run(`coachSession('${P}','${S4}')`).athletes.find(a=>a.id==='300100').time==='','hand-entered past rows carry no time');
+ok(run(`coachSessionDelete('${P}','${S4}')`).ok&&run(`coachSession('${P}','${S4}')`).ok===false&&run("read_('SessionLog').rows.every(function(l){return l.SessionID!=='"+S4+"'})"),'deleting a session removes its rows');
+ok(run(`coachSessionStart('000000','x',60,'')`).error==='PIN'&&run(`coachSessionMark('000000','${S3}','300100',true)`).error==='PIN'&&run(`coachSessionDelete('000000','${S3}')`).error==='PIN'&&run(`coachSession('000000','${S3}')`).error==='PIN','session endpoints need the PIN');
 // --- travel roster: managers, levels, the PDF and the office email
 at('2026-11-20T17:00:00Z');   // Fri Nov 20, 10:00 AM
 run("__book.getSheetByName('Athletes').data.forEach(function(r){r.length=7}); __book.getSheetByName('Trips').data.forEach(function(r){r.length=6});");   // like the live Sheet before this update: no Role, Levels, Excuse... columns

@@ -30,6 +30,15 @@ No athlete names, IDs or weights are stored in this repository. All data lives i
 
 Practice alternates weekly between an early slot (4:00) and a late slot (6:00). The `Schedule` tab holds one row per practice day (`Date`, `Start`, `End`, `Note`; `Start` = `OFF` for no practice). Days with no row follow `PRACTICE_DAYS` and `DEFAULT_SLOT` in Config. Coaches set days from More > Practice schedule, including Saturdays and holidays; "Fill ahead" lays out four alternating weeks. Check-in opens 30 minutes before the start, marks Late after 5, and closes 20 minutes after (all in Config).
 
+## Optional sessions
+
+Weight room time, Saturday recovery and other non-mandatory work are tracked as optional sessions, separate from practice.
+
+- **Starting one:** on the Today screen, "+ Optional session" opens check-in immediately for 1, 2 or 3 hours. Athletes scan the same QR code. For a past day the coach creates the session and adds names by hand.
+- **What a scan does:** if practice check-in is open, the scan is a practice check-in, and the athlete can add the optional session with one more tap. If practice check-in is not open, the scan logs the optional session.
+- **Reports:** optional sessions are counted on their own ("+ optional"). They are never a practice day, never an absence, and never part of the attendance percentage.
+- Data lives in the `Sessions` and `SessionLog` tabs.
+
 ## Travel rosters
 
 The Travel tab holds one trip per meet. A trip is both the travel roster for the attendance office and the list for the bus check, so the two cannot drift apart.
