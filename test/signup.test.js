@@ -12,8 +12,8 @@ const {chromium}=require('playwright');const path=require('path');const fs=requi
     var q=new URLSearchParams(location.search); __now=new Date('2026-11-12T01:15:00Z');
     var c=__book.insertSheet('Config');c.appendRow(['Key','Value','What it does']);c.appendRow(['SIGNUP_SHEET_ID','SIGNUPID','']);
     var sg=__signup.insertSheet('Sign-Ups');sg.appendRow(['Signed Up','Student Name','Student Email','Parent Name','Parent Email']);
-    window.__fail=false; window.__calls=0; window.WP_TEAM='West Point Dragons Wrestling'; window.WP_API='https://mock.invalid/exec';
-    window.fetch=function(u,o){window.__calls++;return new Promise(function(res,rej){setTimeout(function(){if(window.__fail)return rej(new TypeError('net'));
+    window.__fail=false; window.__calls=0; window.WP_TEAM='West Point Dragons Wrestling'; window.WP_API='https://mock.invalid/attendance';window.WP_SIGNUP_API='https://mock.invalid/exec';window.__urls=[];
+    window.fetch=function(u,o){window.__calls++;window.__urls.push(u);return new Promise(function(res,rej){setTimeout(function(){if(window.__fail)return rej(new TypeError('net'));
       var j=q.get('old')?{ok:false,error:'BAD',message:'Unknown request. The app may need to be reloaded.'}:JSON.parse(doPost({postData:{contents:o.body}}).__text);
       res({ok:true,json:function(){return Promise.resolve(j);}});},150);});};</script>`;
     const out=html.replace('<script src="config.js"></script>',()=>shim);
@@ -56,6 +56,7 @@ const {chromium}=require('playwright');const path=require('path');const fs=requi
   // Sheet script not updated yet
   await p.goto(U+'?old=1');await p.fill('#student','Nia Cole');await p.fill('#parent','Dee Cole');await p.fill('#parentEmail','dee@example.com');await p.click('#go');await p.waitForSelector('#err:not([hidden])');
   ok(/not turned on yet/.test(await p.innerText('#err')),'old Sheet script: plain message, no false success');await shot('s5-not-on');
+  ok((await p.evaluate(()=>window.__urls)).every(u=>u==='https://mock.invalid/exec'),'sign-ups go to the sign-up web app, never the attendance one');
   ok(errs.length===0,'no page errors: '+errs.join(' | '));
   await b.close();
   console.log('ALL',n,'SIGN-UP PAGE CHECKS PASSED');

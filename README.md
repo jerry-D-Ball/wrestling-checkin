@@ -53,7 +53,8 @@ The Travel tab holds one trip per meet. A trip is both the travel roster for the
 
 `signup.html` is a public page for incoming families: student name, student email (optional), parent or guardian name and email. It has its own QR code and needs no PIN or Student ID.
 
-- Each sign-up is one row in a separate Google Sheet. That Sheet's ID is in the attendance Sheet's Config tab as `SIGNUP_SHEET_ID`, not in this repository. If that Sheet cannot be opened, the row goes to a `FreshmanNight` tab in the attendance Sheet instead, so a sign-up is never lost.
+- Each sign-up is one row on the `Sign-Ups` tab of its own Google Sheet ("Future Freshman Night - Wrestling Sign-Ups"). That Sheet has its own copy of `Code.gs` and its own web app; its URL is `WP_SIGNUP_API` in `config.js`. The sign-up page never talks to the attendance Sheet.
+- The sign-up Sheet's Config tab holds its own ID as `SIGNUP_SHEET_ID`. If that is blank or cannot be opened, rows go to a `FreshmanNight` tab in the same Sheet, so a sign-up is never lost.
 - The page can only add a row. It cannot read the list. The same student with the same parent email corrects their row instead of adding a second one.
 - The coach may add, move or reorder columns in the sign-up Sheet; rows follow the column headers.
 - To close sign-up, set `SIGNUP_OPEN` to `N` in Config.

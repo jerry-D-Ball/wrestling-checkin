@@ -133,10 +133,11 @@ function showError(field,msg){
   }
 }
 function send(d){
-  if(!window.WP_API)return Promise.resolve({ok:false,error:'BAD'});
+  var API=window.WP_SIGNUP_API||window.WP_API;
+  if(!API)return Promise.resolve({ok:false,error:'BAD'});
   var ctl=typeof AbortController!=='undefined'?new AbortController():null;
   var t=setTimeout(function(){if(ctl)ctl.abort();},30000);
-  return fetch(window.WP_API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({fn:'signupFreshman',args:[d]}),redirect:'follow',signal:ctl?ctl.signal:undefined})
+  return fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({fn:'signupFreshman',args:[d]}),redirect:'follow',signal:ctl?ctl.signal:undefined})
     .then(function(r){if(!r.ok)throw new Error('http');return r.json();})
     .then(function(j){clearTimeout(t);return j||{ok:false,error:'NET'};})
     .catch(function(){clearTimeout(t);return {ok:false,error:'NET'};});
