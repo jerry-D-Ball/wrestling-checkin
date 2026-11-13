@@ -38,7 +38,20 @@
     sleep: function () {}
   };
   g.LockService = { getScriptLock: function () { return { waitLock: function () {}, releaseLock: function () {} }; } };
-  g.ScriptApp = { getService: function () { return { getUrl: function () { return 'https://script.google.com/macros/s/TEST/exec'; } }; } };
+  g.__triggers = []; g.__triggerFail = '';   // __triggerFail: 'all' = no permission yet, 'fancy' = only the plainest timer form works
+  g.ScriptApp = { getService: function () { return { getUrl: function () { return 'https://script.google.com/macros/s/TEST/exec'; } }; },
+    WeekDay: { MONDAY: 'MONDAY', FRIDAY: 'FRIDAY' },
+    getProjectTriggers: function () { if (g.__triggerFail === 'all') throw new Error('Authorization is required'); return g.__triggers.slice(); },
+    deleteTrigger: function (t) { g.__triggers = g.__triggers.filter(function (x) { return x !== t; }); },
+    newTrigger: function (fn) {
+      var t = { fn: fn, getHandlerFunction: function () { return fn; } }, b = {
+        timeBased: function () { return b; }, everyWeeks: function (n) { t.weeks = n; return b; }, onWeekDay: function (d) { t.day = d; return b; }, atHour: function (h) { t.hour = h; return b; },
+        nearMinute: function (m) { if (g.__triggerFail === 'fancy') throw new Error('unsupported'); t.minute = m; return b; }, inTimezone: function (z) { t.tz = z; return b; },
+        create: function () { g.__triggers.push(t); return t; } };
+      return b;
+    } };
+  g.__owner = 'owner@example.com';
+  g.Session = { getEffectiveUser: function () { return { getEmail: function () { return g.__owner; } }; } };
   g.Logger = { log: function () {} };
   g.__cache = {};
   g.CacheService = { getScriptCache: function () { return { get: function (k) { return Object.prototype.hasOwnProperty.call(g.__cache, k) ? g.__cache[k] : null; }, put: function (k, v) { g.__cache[k] = String(v); }, remove: function (k) { delete g.__cache[k]; } }; } };

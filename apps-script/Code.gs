@@ -1,5 +1,5 @@
 /**
- * WEST POINT WRESTLING - ATTENDANCE, OPTIONAL SESSIONS, WEIGHTS, TRAVEL ROSTERS, BUS CHECK & FRESHMAN NIGHT SIGN-UP  (data script)
+ * WEST POINT WRESTLING - ATTENDANCE, OPTIONAL SESSIONS, WEIGHTS, TRAVEL ROSTERS, BUS CHECK, WEEKLY ATTENDANCE EMAIL & FRESHMAN NIGHT SIGN-UP  (data script)
  *
  * This script lives in the attendance Google Sheet. It only saves and reads rows.
  * The screens athletes and coaches see are the website in this repository.
@@ -10,7 +10,7 @@
  *
  * AFTER PASTING A NEW COPY OF THIS FILE:
  *             1) Run "setup" again. It is safe to repeat, and it asks for any new permission
- *                (such as sending the travel roster email).
+ *                (such as sending the travel roster email, or running the Monday attendance email by itself).
  *             2) Deploy > Manage deployments > pencil > Version: New version > Deploy.
  *                Do NOT make a new deployment, or the app's address changes.
  *
@@ -53,6 +53,10 @@ var DEFAULTS = [
   ['TRAVEL_EMAIL_CC', '', 'Optional: who gets a copy, for example your school email. Replies go to this address.'],
   ['TRAVEL_EMAIL_GREETING', 'Hello,', 'First line of the travel roster email.'],
   ['TRAVEL_EMAIL_SIGNOFF', 'West Point Wrestling Coaching Staff', 'Last line of the travel roster email.'],
+  ['REPORT_EMAIL_TO', '', 'Who gets the weekly attendance email. It goes out by itself every Monday at about 6 AM and lists the names and Student IDs of everyone who attended the week before. Blank = no weekly email. Separate several addresses with commas.'],
+  ['REPORT_EMAIL_CC', '', 'Optional: who gets a copy of the weekly attendance email.'],
+  ['REPORT_BY_DAY', 'Y', 'Layout of the weekly attendance email. Y = one list of names and IDs for each day. N = one list for the whole week.'],
+  ['REPORT_LAST_SENT', '', 'Filled in by the script: the week the attendance email last went out for. Leave it alone, or clear it to let that week be sent again.'],
   ['WEIGHT_LOSS_FLAG_PCT', '3', 'Flag an athlete whose weight drops more than this percent in one practice.'],
   ['OLD_SHEET_ID', '', 'ID of the old attendance Sheet. The roster is copied from its Athletes tab.'],
   ['SIGNUP_OPEN', 'Y', 'Future Freshman Night sign-up page: Y = taking sign-ups, N = closed.'],
@@ -108,6 +112,7 @@ function onOpen() {
     .addItem('1. Set up (run once)', 'setup')
     .addItem('Update roster from old sheet', 'updateRosterFromOldSheet')
     .addItem('Show app links and coach PIN', 'showLinks')
+    .addItem('Email me a test of the weekly attendance report', 'weeklyReportTest')
     .addToUi();
 }
 
@@ -127,7 +132,7 @@ function isGirlsSheet_() {
 }
 
 function setup_(girls) {
-  var ss = ss_(), say = function (out) { try { SpreadsheetApp.getUi().alert(out); } catch (err) { /* run from editor */ } Logger.log(out); return out; };
+  var ss = ss_(), say = say_;
   if (girls && !isGirlsSheet_()) {
     var used = ss.getSheetByName('Attendance');
     if (used && used.getLastRow() > 1) return say('STOP. Nothing was changed.\n\nThis Sheet already holds a team\'s attendance. The girls team needs its own new, blank Sheet: make one, paste this file into it, and run setupGirls there.');
@@ -172,10 +177,13 @@ function setup_(girls) {
     if (girls && /^No OLD_SHEET_ID/.test(msg)) msg = 'The roster is empty: type or paste your athletes into the Athletes tab (StudentID, FirstName, LastName, Grade), or add them in the app under More.';
   }
   return say('Setup complete' + (girls ? ' for ' + cfg_('TEAM_NAME') : '') + '. ' + msg + '\nCoach PIN: ' + cfg_('COACH_PIN') +
-    (girls ? '\nHealth PIN (opens the cycle log only): ' + cfg_('HEALTH_PIN') : '') + (firstTime
+    (girls ? '\nHealth PIN (opens the cycle log only): ' + cfg_('HEALTH_PIN') : '') + '\n' + installWeeklyTimer_() + (firstTime
     ? '\n\nNext: Deploy > New deployment > Web app > Execute as "Me", Who has access "Anyone". Then copy the web app URL (ends in /exec) and give it to Claude.'
     : '\n\nNext: Deploy > Manage deployments > pencil > Version: New version > Deploy. (Do not make a new deployment.)'));
 }
+
+/** Shows a message in the Sheet when run from its menu, and in the log when run from the script editor. */
+function say_(out) { try { SpreadsheetApp.getUi().alert(out); } catch (err) { /* run from editor */ } Logger.log(out); return out; }
 
 function addMissingHeaders_(sh, want) {
   var head = sh.getRange(1, 1, 1, Math.max(1, sh.getLastColumn())).getDisplayValues()[0];
@@ -1021,6 +1029,124 @@ function signupText_(v, max) {
   return String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\s+/g, ' ').replace(/^[\s=+\-@]+/, '').trim().slice(0, max);
 }
 function isEmail_(v) { return /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(String(v || '')); }
+
+/* ====================================================================== */
+/*  WEEKLY ATTENDANCE EMAIL                                               */
+/* ====================================================================== */
+/*
+ * "setup" installs a timer that runs weeklyReport every Monday at about 6 AM. Nobody has to be signed in.
+ * The email lists who attended the week before (Monday through Sunday): Student ID and name, nothing else.
+ * A day counts when the athlete was at practice (Present or Late) or at an optional session.
+ * It is sent from the Google account that owns this Sheet, to REPORT_EMAIL_TO in the Config tab.
+ */
+
+/** The timer calls this. Safe to run by hand from the editor too: a week is never emailed twice. */
+function weeklyReport() {
+  return locked_(function () {
+    var start = addDays_(weekStart_(today_()), -7), to = emails_(cfg_('REPORT_EMAIL_TO')), cc = emails_(cfg_('REPORT_EMAIL_CC'));
+    if (!to) return note_('Weekly attendance email: nothing sent. There is no address in the REPORT_EMAIL_TO row of the Config tab.');
+    if (String(cfg_('REPORT_LAST_SENT')).indexOf(start) === 0) return note_('Weekly attendance email: the week of ' + niceDate_(start) + ' already went out. Nothing sent.');
+    var msg = weekMail_(start);
+    msg.to = to;
+    if (cc) msg.cc = cc;
+    MailApp.sendEmail(msg);   // a failure here stops the run, so Google emails the Sheet owner that the timer failed
+    setCfg_('REPORT_LAST_SENT', start + ' week, sent ' + stamp_() + ' to ' + to);
+    return note_('Weekly attendance email sent to ' + to + ' for the week of ' + niceDate_(start) + '.');
+  });
+}
+
+/** Sends this week so far to YOU only (the owner of this Sheet), so you can see what Monday's email will look like. */
+function weeklyReportTest() {
+  var me = ownerEmail_(), to = emails_(cfg_('REPORT_EMAIL_TO'));
+  if (!me) return say_('Could not read your own email address, so no test was sent.');
+  var msg = weekMail_(weekStart_(today_()), 'TEST. This copy went only to you. ' + (to
+    ? 'The real one goes to ' + to + ' every Monday at about 6 AM and covers the week before.'
+    : 'No weekly email is going out yet: put the address in the REPORT_EMAIL_TO row of the Config tab.'));
+  msg.to = me;
+  msg.subject = 'TEST - ' + msg.subject;
+  try { MailApp.sendEmail(msg); } catch (err) { return say_('The test email was NOT sent: ' + ((err && err.message) || err) + '\n\nRun "setup" once and approve the permissions, then try again.'); }
+  return say_('Test sent to ' + me + '. It shows this week so far.\n\n' + (to ? 'The real email goes to ' + to + ' every Monday at about 6 AM.' : 'No weekly email is set up yet: REPORT_EMAIL_TO in the Config tab is blank.'));
+}
+
+/** Replaces any old copy of the Monday timer with exactly one. Returns a line for the setup message. */
+function installWeeklyTimer_() {
+  try {
+    ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'weeklyReport') ScriptApp.deleteTrigger(t); });
+    try {
+      ScriptApp.newTrigger('weeklyReport').timeBased().everyWeeks(1).onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(6).nearMinute(0).inTimezone(tz_()).create();
+    } catch (err) {   // plainest form Google documents: Mondays in the 6 o'clock hour, in the script's own time zone
+      ScriptApp.newTrigger('weeklyReport').timeBased().onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(6).create();
+    }
+  } catch (err2) {
+    return 'WEEKLY ATTENDANCE EMAIL: THE MONDAY TIMER WAS NOT SET (' + ((err2 && err2.message) || err2) + '). Run setup again from the script editor and approve the permission it asks for.';
+  }
+  var to = emails_(cfg_('REPORT_EMAIL_TO'));
+  return to ? 'Weekly attendance email: every Monday at about 6 AM to ' + to + '.'
+            : 'Weekly attendance email: off. To turn it on, put the address in the REPORT_EMAIL_TO row of the Config tab.';
+}
+
+function ownerEmail_() {
+  try { var e = Session.getEffectiveUser().getEmail(); if (e) return e; } catch (err) { /* try the Sheet's owner */ }
+  try { var o = ss_().getOwner(); return o ? String(o.getEmail() || '') : ''; } catch (err2) { return ''; }
+}
+
+function note_(out) { Logger.log(out); return out; }
+
+/**
+ * Who attended each day from..to, by Student ID. Names come from the roster (removed athletes included,
+ * so someone who left mid-week still shows for the days they came); managers are left out.
+ */
+function weekAttendance_(from, to) {
+  var people = {}, days = {}, known = {};
+  roster_(false).forEach(function (a) { known[a.id] = a; });
+  var add = function (date, id, name) {
+    id = String(id == null ? '' : id).trim();
+    if (!id || !(date >= from && date <= to)) return;
+    var a = known[id];
+    if (a && a.staff) return;
+    if (!people[id]) {
+      var shown = a ? [a.last, a.first].filter(function (x) { return x; }).join(', ') : String(name || '').trim();
+      people[id] = { id: id, name: shown || id, key: (shown || id).toLowerCase() };
+    }
+    (days[date] = days[date] || {})[id] = true;
+  };
+  read_('Attendance').rows.forEach(function (r) { if (r.Status === 'Present' || r.Status === 'Late') add(r.Date, r.StudentID, r.Name); });
+  read_('SessionLog').rows.forEach(function (r) { add(r.Date, r.StudentID, r.Name); });
+  var order = function (x, y) { return x.key < y.key ? -1 : x.key > y.key ? 1 : x.id < y.id ? -1 : 1; };
+  var pick = function (ids) { return Object.keys(ids).map(function (id) { return people[id]; }).sort(order); };
+  return { days: Object.keys(days).sort().map(function (d) { return { date: d, list: pick(days[d]) }; }), all: pick(people) };
+}
+
+/** The email for the week starting on Monday `start`. Student IDs and names only. */
+function weekMail_(start, banner) {
+  var end = addDays_(start, 6), team = cfg_('TEAM_NAME'), w = weekAttendance_(start, end), byDay = !isNo_(cfg_('REPORT_BY_DAY'));
+  var count = function (n) { return n + (n === 1 ? ' student' : ' students'); };
+  var range = niceDate_(start) + ' to ' + niceDate_(end) + ', ' + end.slice(0, 4);
+  var total = w.all.length ? count(w.all.length) + ' attended on ' + w.days.length + (w.days.length === 1 ? ' day.' : ' days.') : 'No attendance was recorded this week.';
+  var parts = !w.all.length ? [] : byDay ? w.days.map(function (d) { return { title: niceDate_(d.date), list: d.list }; })
+                                         : [{ title: 'Attended at least one day', list: w.all }];
+  var text = (banner ? [banner, ''] : []).concat([team + ' attendance', 'Week of ' + range, total, '']);
+  var cell = 'border:1px solid #999999;padding:5px 10px;text-align:left', head = cell + ';background:#111111;color:#ffffff';
+  var html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#111111">' +
+    (banner ? '<p style="margin:0 0 14px;padding:8px 10px;border:2px solid #c8102e"><b>' + esc_(banner) + '</b></p>' : '') +
+    '<h2 style="margin:0 0 4px;font-size:18px">' + esc_(team) + ' attendance</h2>' +
+    '<p style="margin:0 0 4px">Week of ' + esc_(range) + '</p><p style="margin:0 0 4px"><b>' + esc_(total) + '</b></p>';
+  parts.forEach(function (p) {
+    text.push(p.title + ': ' + count(p.list.length));
+    html += '<h3 style="margin:18px 0 6px;font-size:15px">' + esc_(p.title) + ': ' + count(p.list.length) + '</h3>' +
+      '<table cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-size:14px"><tr><th style="' + head + '">Student ID</th><th style="' + head + '">Name</th></tr>';
+    p.list.forEach(function (x) {
+      text.push(x.id + '  ' + x.name);
+      html += '<tr><td style="' + cell + '">' + esc_(x.id) + '</td><td style="' + cell + '">' + esc_(x.name) + '</td></tr>';
+    });
+    text.push('');
+    html += '</table>';
+  });
+  var foot = 'Sent automatically every Monday morning from the team attendance app.';
+  text.push(foot);
+  html += '<p style="margin:18px 0 0;font-size:12px;color:#555555">' + foot + '</p></div>';
+  return { subject: team + ' attendance: week of ' + niceDate_(start) + ' to ' + niceDate_(end), body: text.join('\n'), htmlBody: html, name: team };
+}
 
 /* ====================================================================== */
 /*  CYCLE LOG (girls team Sheet only: set up with setupGirls)              */

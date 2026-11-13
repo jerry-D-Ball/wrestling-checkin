@@ -59,6 +59,17 @@ The Travel tab holds one trip per meet. A trip is both the travel roster for the
 - The coach may add, move or reorder columns in the sign-up Sheet; rows follow the column headers.
 - To close sign-up, set `SIGNUP_OPEN` to `N` in Config.
 
+## Weekly attendance email
+
+Each team's Sheet can email its attendance for the week by itself, with nobody signed in.
+
+- **When:** every Monday at about 6 AM (Google runs it within about 15 minutes of that), covering the Monday through Sunday before. `setup` installs the timer; running `setup` again never makes a second one.
+- **Who gets it:** the address in the `REPORT_EMAIL_TO` row of the Config tab (several, separated by commas). Blank means no email goes out. `REPORT_EMAIL_CC` sends a copy. Addresses live only in the Sheet, never in this repository.
+- **What it says:** for each day that had attendance, the Student ID and name of everyone who was there, and nothing else. A day counts when the athlete was at practice (Present or Late) or at an optional session. `REPORT_BY_DAY` = `N` sends one list for the whole week instead.
+- **Sent from:** the Google account that owns the Sheet, so a copy is in that account's Sent folder. The boys' and girls' Sheets each send their own email.
+- **Try it first:** in the Sheet, Attendance > "Email me a test of the weekly attendance report" (or run `weeklyReportTest`). It sends this week so far to you only.
+- **If a Monday is missed:** Google emails the Sheet owner when the timer fails. Run `weeklyReport` from the script editor any day that week; a week is never sent twice. To resend a week on purpose, clear the `REPORT_LAST_SENT` cell first.
+
 ## The girls team: a separate deployment
 
 Girls wrestling runs the same app as its own deployment. The two teams share the code and nothing else.
@@ -103,6 +114,6 @@ Paste the new `Code.gs`, run `setup`, then Deploy > Manage deployments > pencil 
 
 ## Tests
 
-`node test/logic.test.js` checks the data script against a mock Sheet, and `node test/cycle.test.js` does the same for a girls-team Sheet and the cycle log. `node test/ui.test.js` drives the real `index.html` in a phone-sized browser (needs Playwright), `node test/girls.test.js` does the same for the girls page, and `node test/signup.test.js` for `signup.html`. All names in the tests are made up.
+`node test/logic.test.js` checks the data script against a mock Sheet, `node test/cycle.test.js` does the same for a girls-team Sheet and the cycle log, and `node test/report.test.js` for the weekly attendance email. `node test/ui.test.js` drives the real `index.html` in a phone-sized browser (needs Playwright), `node test/girls.test.js` does the same for the girls page, and `node test/signup.test.js` for `signup.html`. All names in the tests are made up.
 
 `qrcode.js` is qrcode-generator by Kazuhiko Arase, MIT license.
